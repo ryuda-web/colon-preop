@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<meta name="theme-color" content="#0f172a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="術前検査">
+<meta name="mobile-web-app-capable" content="yes">
+<title>大腸術前検査スケジューラ</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
+<style>
+:root{
+  --ok:#16a34a; --warn:#f59e0b; --ng:#dc2626;
+  --ok-bg:#dcfce7; --warn-bg:#fef3c7; --ng-bg:#fee2e2;
+  --cs:#0891b2; --be:#ea580c; --ct:#2563eb; --mri:#7c3aed; --pet:#db2777;
+  --bg:#f8fafc; --card:#fff; --text:#0f172a; --muted:#64748b; --border:#e2e8f0;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Yu Gothic",sans-serif;
+  font-size:15px;line-height:1.5;overscroll-behavior:none}
+header{background:#0f172a;color:#fff;padding:calc(14px + env(safe-area-inset-top)) 16px 14px;
+  position:sticky;top:0;z-index:10;box-shadow:0 2px 6px rgba(0,0,0,.12)}
+header h1{margin:0;font-size:17px;font-weight:600;letter-spacing:.02em}
+header .sub{font-size:12px;opacity:.75;margin-top:2px}
+nav.tabs{display:flex;background:#1e293b;position:sticky;top:calc(54px + env(safe-area-inset-top));z-index:10}
+nav.tabs button{flex:1;background:none;border:0;color:#94a3b8;padding:12px 8px;
+  font-size:14px;font-weight:600;cursor:pointer;border-bottom:3px solid transparent}
+nav.tabs button.active{color:#fff;border-bottom-color:#60a5fa;background:rgba(96,165,250,.08)}
+main{padding:12px;padding-bottom:80px;max-width:720px;margin:0 auto}
+.tab{display:none}
+.tab.active{display:block}
+h2{font-size:16px;margin:14px 4px 8px;color:var(--text)}
+h3{font-size:14px;margin:10px 4px 6px;color:var(--muted);font-weight:600}
+.card{background:var(--card);border-radius:12px;padding:12px;margin-bottom:10px;
+  border:1px solid var(--border);box-shadow:0 1px 2px rgba(0,0,0,.03)}
+
+.test-palette{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:10px}
+.test-chip{padding:10px 4px;border-radius:10px;border:0;color:#fff;font-weight:700;
+  font-size:13px;cursor:pointer;transition:transform .1s;text-align:center}
+.test-chip:active{transform:scale(0.94)}
+.test-chip.CS{background:var(--cs)} .test-chip.BE{background:var(--be)}
+.test-chip.CT{background:var(--ct)} .test-chip.MRI{background:var(--mri)}
+.test-chip.PET{background:var(--pet)}
+.test-chip small{display:block;font-size:10px;opacity:.85;margin-top:2px;font-weight:500}
+
+.days{display:flex;flex-direction:column;gap:8px;margin-bottom:10px}
+.day{background:#fff;border:1px solid var(--border);border-radius:12px;padding:10px;
+  display:flex;align-items:center;gap:10px;min-height:56px}
+.day-label{font-weight:700;font-size:13px;color:var(--muted);min-width:48px;text-align:center;
+  background:#f1f5f9;padding:8px 4px;border-radius:8px}
+.day-tests{flex:1;display:flex;flex-wrap:wrap;gap:6px;align-items:center;min-height:36px}
+.day-tests .empty{color:#cbd5e1;font-size:12px}
+.placed{padding:6px 10px;border-radius:8px;color:#fff;font-weight:700;font-size:13px;
+  display:inline-flex;align-items:center;gap:6px}
+.placed.CS{background:var(--cs)} .placed.BE{background:var(--be)}
+.placed.CT{background:var(--ct)} .placed.MRI{background:var(--mri)}
+.placed.PET{background:var(--pet)}
+.placed .x{background:rgba(255,255,255,.25);border-radius:50%;width:18px;height:18px;
+  display:flex;align-items:center;justify-content:center;font-size:12px;cursor:pointer}
+.day-actions{display:flex;gap:6px}
+.btn{background:#f1f5f9;border:1px solid var(--border);border-radius:8px;padding:6px 10px;
+  font-size:13px;cursor:pointer;color:var(--text)}
+.btn:active{background:#e2e8f0}
+.btn-danger{background:#fee2e2;color:var(--ng);border-color:#fecaca}
+
+.add-day{width:100%;padding:12px;border-radius:10px;border:2px dashed #cbd5e1;
+  background:transparent;color:var(--muted);font-weight:600;cursor:pointer}
+.add-day:active{background:#f1f5f9}
+
+.selecting{position:fixed;inset:0;background:rgba(15,23,42,.55);display:none;
+  align-items:flex-end;z-index:100}
+.selecting.show{display:flex}
+.sheet{background:#fff;width:100%;border-radius:16px 16px 0 0;padding:16px;
+  padding-bottom:calc(16px + env(safe-area-inset-bottom))}
+.sheet h3{margin:0 0 12px;color:var(--text);font-size:15px}
+.sheet-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+.sheet-chip{padding:14px 10px;border-radius:10px;border:0;color:#fff;font-weight:700;
+  font-size:15px;cursor:pointer;text-align:left}
+.sheet-chip small{display:block;font-size:11px;opacity:.85;margin-top:3px;font-weight:500}
+.sheet .cancel{margin-top:10px;width:100%;padding:12px;background:#f1f5f9;border:0;
+  border-radius:10px;font-weight:600;color:var(--text)}
+
+.alerts{margin-top:8px}
+.alert{border-radius:10px;padding:10px 12px;margin-bottom:6px;border-left:4px solid;font-size:13px}
+.alert.ng{background:var(--ng-bg);border-color:var(--ng);color:#7f1d1d}
+.alert.warn{background:var(--warn-bg);border-color:var(--warn);color:#78350f}
+.alert.ok{background:var(--ok-bg);border-color:var(--ok);color:#14532d}
+.alert strong{display:block;margin-bottom:2px;font-size:13px}
+.alert .reason{font-size:12px;opacity:.9;margin-top:2px}
+
+.status-banner{padding:12px;border-radius:10px;font-weight:700;text-align:center;
+  display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:10px}
+.status-banner.ok{background:var(--ok-bg);color:var(--ok)}
+.status-banner.warn{background:var(--warn-bg);color:var(--warn)}
+.status-banner.ng{background:var(--ng-bg);color:var(--ng)}
+
+.matrix{width:100%;border-collapse:collapse;background:#fff;border-radius:8px;overflow:hidden;
+  font-size:13px;margin-bottom:8px}
+.matrix th,.matrix td{border:1px solid var(--border);padding:8px 4px;text-align:center;font-weight:600}
+.matrix th{background:#f1f5f9;color:var(--muted);font-size:12px}
+.matrix .row-label{background:#f8fafc;color:var(--text);font-weight:700}
+.matrix .cell{cursor:pointer;font-size:16px}
+.matrix .cell.ok{background:var(--ok-bg);color:var(--ok)}
+.matrix .cell.warn{background:var(--warn-bg);color:var(--warn)}
+.matrix .cell.ng{background:var(--ng-bg);color:var(--ng)}
+.matrix .cell.same{background:#f1f5f9;color:#cbd5e1}
+
+.legend{display:flex;gap:12px;flex-wrap:wrap;padding:8px 4px;font-size:12px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:4px}
+.legend .dot{width:14px;height:14px;border-radius:4px;display:inline-block}
+
+.tip{background:#fff;border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px}
+.tip h4{margin:0 0 6px;font-size:14px;color:var(--text)}
+.tip h4::before{content:"▸ ";color:#60a5fa}
+.tip ul{margin:4px 0 0;padding-left:18px;font-size:13px;color:#334155;line-height:1.6}
+.tip li{margin-bottom:3px}
+.tip .highlight{background:linear-gradient(transparent 60%,#fef3c7 60%);padding:0 2px}
+
+.clear-btn{margin-top:10px;background:#fee2e2;color:var(--ng);border:1px solid #fecaca;
+  padding:10px;border-radius:10px;width:100%;font-weight:600;cursor:pointer}
+
+.detail-modal{position:fixed;inset:0;background:rgba(15,23,42,.55);display:none;
+  align-items:center;justify-content:center;padding:20px;z-index:100}
+.detail-modal.show{display:flex}
+.detail-card{background:#fff;border-radius:14px;padding:18px;max-width:420px;width:100%}
+.detail-card h3{margin:0 0 10px;color:var(--text);font-size:16px}
+.detail-card p{font-size:13px;color:#334155;margin:4px 0}
+.detail-card .close{margin-top:14px;width:100%;padding:10px;background:#2563eb;color:#fff;
+  border:0;border-radius:10px;font-weight:600;cursor:pointer}
+
+.badge{display:inline-block;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:700;margin-right:4px}
+.badge.ng{background:var(--ng);color:#fff}
+.badge.warn{background:var(--warn);color:#fff}
+.badge.ok{background:var(--ok);color:#fff}
+
+footer.app-footer{text-align:center;padding:20px 12px calc(20px + env(safe-area-inset-bottom));
+  color:#94a3b8;font-size:11px;line-height:1.5}
+footer.app-footer .ver{font-weight:600;color:#64748b}
+footer.app-footer a{color:#64748b;text-decoration:none}
+
+.toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);
+  background:#0f172a;color:#fff;padding:10px 16px;border-radius:24px;font-size:13px;
+  opacity:0;transition:opacity .3s;pointer-events:none;z-index:200;max-width:calc(100% - 40px)}
+.toast.show{opacity:1}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>大腸術前検査スケジューラ</h1>
+  <div class="sub">NG組み合わせチェック付き オーダー支援ツール</div>
+</header>
+
+<nav class="tabs">
+  <button class="tab-btn active" data-tab="plan">📅 予定作成</button>
+  <button class="tab-btn" data-tab="matrix">🔲 相性表</button>
+  <button class="tab-btn" data-tab="tips">💡 Tips</button>
+</nav>
+
+<main>
+  <section class="tab active" id="plan">
+    <div class="card">
+      <h2 style="margin-top:0">検査をタップで追加</h2>
+      <div class="test-palette">
+        <button class="test-chip CS" data-test="CS">CS<small>大腸内視鏡</small></button>
+        <button class="test-chip BE" data-test="BE">BE<small>注腸造影</small></button>
+        <button class="test-chip CT" data-test="CT">CT<small>造影CT</small></button>
+        <button class="test-chip MRI" data-test="MRI">MRI<small>MRI</small></button>
+        <button class="test-chip PET" data-test="PET">PET<small>PET-CT</small></button>
+      </div>
+      <p style="font-size:12px;color:var(--muted);margin:0">上の検査を押してから追加したい日を選んでください（入力内容は端末に自動保存されます）</p>
+    </div>
+
+    <div id="status-banner"></div>
+
+    <div class="days" id="days"></div>
+    <button class="add-day" id="add-day">＋ 日を追加</button>
+
+    <div class="alerts" id="alerts"></div>
+
+    <button class="clear-btn" id="clear-btn">スケジュールをリセット</button>
+  </section>
+
+  <section class="tab" id="matrix">
+    <div class="card">
+      <h2 style="margin-top:0">同日(24h以内)</h2>
+      <p style="font-size:12px;color:var(--muted);margin:0 0 8px">行=先に行う検査／列=後に行う検査</p>
+      <div id="matrix-same"></div>
+      <div class="legend">
+        <span><span class="dot" style="background:var(--ok-bg);border:1px solid var(--ok)"></span>✅ OK</span>
+        <span><span class="dot" style="background:var(--warn-bg);border:1px solid var(--warn)"></span>⚠ 注意</span>
+        <span><span class="dot" style="background:var(--ng-bg);border:1px solid var(--ng)"></span>❌ 同日不可</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2 style="margin-top:0">翌日(24–48h後)</h2>
+      <p style="font-size:12px;color:var(--muted);margin:0 0 8px">"当日NGでも翌日ならOK"を可視化</p>
+      <div id="matrix-next"></div>
+      <div class="legend">
+        <span><span class="dot" style="background:var(--ok-bg);border:1px solid var(--ok)"></span>✅ OK</span>
+        <span><span class="dot" style="background:var(--warn-bg);border:1px solid var(--warn)"></span>⚠ 48h空け推奨</span>
+        <span><span class="dot" style="background:var(--ng-bg);border:1px solid var(--ng)"></span>❌ 48h超推奨</span>
+      </div>
+    </div>
+    <p style="font-size:12px;color:var(--muted);padding:0 4px">※ セルをタップで根拠を表示</p>
+  </section>
+
+  <section class="tab" id="tips">
+    <div class="card">
+      <h2 style="margin-top:0">実践のコツ</h2>
+      <div class="tip">
+        <h4>基本の順序</h4>
+        <ul>
+          <li><strong>CS(大腸内視鏡) first</strong> ― 最初にやるのが鉄則</li>
+          <li><strong>BE(注腸)</strong> は CS/MRI/CT 後が無難</li>
+          <li><strong>PET</strong> は撮影するなら <span class="highlight">last</span> が無難</li>
+        </ul>
+      </div>
+      <div class="tip">
+        <h4>二大トラップ（検査精度）</h4>
+        <ul>
+          <li><span class="highlight">バリウム残渣</span>で後続のCS/CT/PETが見えなくなる</li>
+          <li><span class="highlight">FDG偽陽性</span>でPETのSUV値が信頼できなくなる</li>
+        </ul>
+      </div>
+      <div class="tip">
+        <h4>高齢者・腎機能不良者への配慮</h4>
+        <ul>
+          <li>高齢者では「朝・昼絶食」のスケジュールは避ける</li>
+          <li>CT/MRI造影剤は<strong>1日1種</strong>(ヨード or ガド)</li>
+          <li>eGFR&lt;60では連続造影を特に慎重に</li>
+          <li>※腎機能正常成人なら同日連続造影も許容される場合あり</li>
+        </ul>
+      </div>
+      <div class="tip">
+        <h4>覚えておくべき許容例</h4>
+        <ul>
+          <li>ガストロ注腸(水溶性造影剤)後の同日CSは理論上 OK</li>
+          <li>PET起点なら翌日には全検査OK(FDG半減期2h、排泄完了)</li>
+          <li>CS起点でもCT/MRI/PETは翌日ならOK(ガス・筋活動が鎮静化)</li>
+        </ul>
+      </div>
+      <div class="tip">
+        <h4>NG理由 早見</h4>
+        <ul>
+          <li><span class="badge ng">¹</span>バリウム残渣 ― 視認性低下</li>
+          <li><span class="badge ng">²</span>ガス膨満 ― CT画像悪化</li>
+          <li><span class="badge warn">³</span>磁化率アーチファクト ― MRI画質低下</li>
+          <li><span class="badge ng">⁴</span>FDG偽陽性 ― SUV誤判定</li>
+          <li><span class="badge ng">⁵</span>バリウムアーチファクト ― CT/PET不正確</li>
+          <li><span class="badge warn">⁶</span>二重造影腎負荷 ― ヨード+ガド</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <footer class="app-footer">
+    <div class="ver">大腸術前検査スケジューラ <span id="version-label"></span></div>
+    <div>君津 外科レジデント教育用 / Internal use only</div>
+    <div id="install-hint" style="margin-top:6px"></div>
+  </footer>
+</main>
+
+<div class="selecting" id="sheet">
+  <div class="sheet">
+    <h3 id="sheet-title">どの日に追加しますか？</h3>
+    <div class="sheet-grid" id="sheet-grid"></div>
+    <button class="cancel" id="sheet-cancel">キャンセル</button>
+  </div>
+</div>
+
+<div class="detail-modal" id="detail">
+  <div class="detail-card">
+    <h3 id="detail-title"></h3>
+    <div id="detail-body"></div>
+    <button class="close" id="detail-close">閉じる</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const APP_VERSION = 'v1.0.0';
+const APP_RELEASE = '2026-04-21';
+const STORAGE_KEY = 'colon-preop-schedule-v1';
+
+const TESTS = {
+  CS:{label:'CS',name:'大腸内視鏡'}, BE:{label:'BE',name:'注腸造影'},
+  CT:{label:'CT',name:'造影CT'},    MRI:{label:'MRI',name:'MRI'},
+  PET:{label:'PET',name:'PET-CT'}
+};
+const TEST_KEYS = ['CS','BE','CT','MRI','PET'];
+
+const SAME_DAY = {
+  CS:{ CS:null, BE:{l:'ng',r:'粘膜がバリウム被覆で視認性低下'},
+       CT:{l:'ng',r:'ガス膨満でCT検査精度低下'},
+       MRI:{l:'warn',r:'ガスに伴う磁化率アーチファクト'},
+       PET:{l:'ng',r:'FDG偽陽性のリスク'} },
+  BE:{ CS:{l:'ng',r:'バリウム残渣で粘膜視認性低下'}, BE:null,
+       CT:{l:'ng',r:'バリウムでCTアーチファクト'},
+       MRI:{l:'warn',r:'バリウム残渣でMRI画質影響'},
+       PET:{l:'ng',r:'バリウムでPET SUV誤判定'} },
+  CT:{ CS:{l:'warn',r:'造影後の排尿・絶食負担'},
+       BE:{l:'ng',r:'造影後の連続腸管前処置は負担大'}, CT:null,
+       MRI:{l:'warn',r:'二重造影で腎負荷、MRI T1高信号'},
+       PET:{l:'warn',r:'連続絶食・造影負担'} },
+  MRI:{ CS:{l:'warn',r:'連続絶食・前処置負担'},
+        BE:{l:'warn',r:'ガド造影後の腸管前処置負担'},
+        CT:{l:'ng',r:'二重造影で腎負荷(ガド→ヨード)'}, MRI:null,
+        PET:{l:'warn',r:'連続絶食負担'} },
+  PET:{ CS:{l:'warn',r:'FDG排泄中の絶食追加は負担'},
+        BE:{l:'ng',r:'FDG排泄制限下でバリウム不可'},
+        CT:{l:'warn',r:'造影剤の連続投与に配慮'},
+        MRI:{l:'warn',r:'連続絶食・体動制限'}, PET:null }
+};
+
+const NEXT_DAY = {
+  CS:{ CS:null, BE:{l:'warn',r:'連続下剤で患者負担'},
+       CT:{l:'ok',r:'ガス膨満は沈静化、画像品質◯'},
+       MRI:{l:'ok',r:'磁化率アーチファクト改善'},
+       PET:{l:'ok',r:'FDG条件を整えやすい'} },
+  BE:{ CS:{l:'ng',r:'バリウム残渣は24hでは十分排出されない'}, BE:null,
+       CT:{l:'ng',r:'バリウム残渣でCTアーチファクト残存'},
+       MRI:{l:'warn',r:'腸管内バリウム残存'},
+       PET:{l:'ng',r:'バリウム残渣でSUV評価に影響'} },
+  CT:{ CS:{l:'ok',r:'造影剤排泄後なら問題なし'},
+       BE:{l:'ng',r:'造影剤+バリウムで腎負荷'}, CT:null,
+       MRI:{l:'warn',r:'eGFR<60では腎負荷に注意'},
+       PET:{l:'ok',r:'24h後なら許容'} },
+  MRI:{ CS:{l:'ok',r:'24h後は問題なし'},
+        BE:{l:'warn',r:'ガド残渣・腸管前処置配慮'},
+        CT:{l:'warn',r:'eGFR<60では腎負荷に注意'}, MRI:null,
+        PET:{l:'ok',r:'24h後なら許容'} },
+  PET:{ CS:{l:'ok',r:'FDG半減期2hで排泄完了'},
+        BE:{l:'ok',r:'翌日なら問題なし'},
+        CT:{l:'ok',r:'翌日なら問題なし'},
+        MRI:{l:'ok',r:'翌日なら問題なし'}, PET:null }
+};
+
+let days = [[],[],[]];
+let selectedTest = null;
+
+const $ = id => document.getElementById(id);
+
+function saveState(){
+  try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(days)); }catch(e){}
+}
+function loadState(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(!raw) return;
+    const parsed = JSON.parse(raw);
+    if(Array.isArray(parsed) && parsed.every(d=>Array.isArray(d))){
+      days = parsed.length ? parsed : [[],[],[]];
+    }
+  }catch(e){}
+}
+function showToast(msg){
+  const t = $('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(showToast._t);
+  showToast._t = setTimeout(()=>t.classList.remove('show'), 1800);
+}
+
+function init(){
+  loadState();
+  $('version-label').textContent = `${APP_VERSION} · ${APP_RELEASE}`;
+
+  document.querySelectorAll('.tab-btn').forEach(b=>{
+    b.addEventListener('click',()=>{
+      document.querySelectorAll('.tab-btn').forEach(x=>x.classList.remove('active'));
+      document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+      b.classList.add('active');
+      $(b.dataset.tab).classList.add('active');
+      window.scrollTo({top:0, behavior:'instant'});
+    });
+  });
+  document.querySelectorAll('.test-chip').forEach(b=>{
+    b.addEventListener('click',()=>openSheet(b.dataset.test));
+  });
+  $('add-day').addEventListener('click',()=>{ days.push([]); saveState(); render(); });
+  $('sheet-cancel').addEventListener('click',closeSheet);
+  $('sheet').addEventListener('click',e=>{ if(e.target.id==='sheet') closeSheet(); });
+  $('clear-btn').addEventListener('click',()=>{
+    if(confirm('スケジュールをリセットしますか?')){
+      days=[[],[],[]]; selectedTest=null; saveState(); render();
+      showToast('リセットしました');
+    }
+  });
+  $('detail-close').addEventListener('click',()=>$('detail').classList.remove('show'));
+  $('detail').addEventListener('click',e=>{ if(e.target.id==='detail') $('detail').classList.remove('show'); });
+
+  renderMatrix();
+  render();
+
+  // Service Worker 登録(オフライン/インストール対応)
+  if('serviceWorker' in navigator){
+    window.addEventListener('load',()=>{
+      navigator.serviceWorker.register('sw.js').catch(()=>{});
+    });
+  }
+
+  // iOS: ホーム画面追加ヒント (スタンドアロン未実行時のみ表示)
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches
+                    || window.navigator.standalone === true;
+  const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
+  if(!isStandalone){
+    const hint = $('install-hint');
+    if(isIOS){
+      hint.innerHTML = '📱 ホーム画面に追加: Safari共有ボタン → 「ホーム画面に追加」';
+    } else {
+      hint.innerHTML = '📱 ホーム画面に追加: ブラウザメニュー → 「ホーム画面に追加」';
+    }
+  }
+}
+
+function openSheet(testKey){
+  selectedTest = testKey;
+  $('sheet-title').textContent = `${TESTS[testKey].name}(${testKey}) をどの日に?`;
+  const grid = $('sheet-grid');
+  grid.innerHTML = '';
+  days.forEach((_,i)=>{
+    const b = document.createElement('button');
+    b.className = `sheet-chip ${testKey}`;
+    b.style.background = cssVar('--'+testKey.toLowerCase());
+    b.innerHTML = `Day ${i+1}<small>${days[i].length}件</small>`;
+    b.addEventListener('click',()=>{ days[i].push(testKey); saveState(); closeSheet(); render(); });
+    grid.appendChild(b);
+  });
+  const add = document.createElement('button');
+  add.className = 'sheet-chip';
+  add.style.background='#64748b';
+  add.innerHTML = '＋ 新しい日<small>追加して配置</small>';
+  add.addEventListener('click',()=>{ days.push([testKey]); saveState(); closeSheet(); render(); });
+  grid.appendChild(add);
+  $('sheet').classList.add('show');
+}
+function closeSheet(){ selectedTest=null; $('sheet').classList.remove('show'); }
+function cssVar(name){ return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+
+function render(){
+  const container = $('days');
+  container.innerHTML = '';
+  days.forEach((tests, idx)=>{
+    const d = document.createElement('div');
+    d.className = 'day';
+    const label = document.createElement('div');
+    label.className = 'day-label';
+    label.textContent = `Day\n${idx+1}`;
+    label.style.whiteSpace = 'pre-line';
+    const testsWrap = document.createElement('div');
+    testsWrap.className = 'day-tests';
+    if(tests.length===0){
+      const e = document.createElement('span');
+      e.className = 'empty';
+      e.textContent = '検査なし';
+      testsWrap.appendChild(e);
+    } else {
+      tests.forEach((t,ti)=>{
+        const p = document.createElement('span');
+        p.className = 'placed '+t;
+        p.innerHTML = `${t}<span class="x">×</span>`;
+        p.querySelector('.x').addEventListener('click',()=>{
+          days[idx].splice(ti,1); saveState(); render();
+        });
+        testsWrap.appendChild(p);
+      });
+    }
+    const actions = document.createElement('div');
+    actions.className = 'day-actions';
+    if(days.length > 1 && tests.length===0){
+      const del = document.createElement('button');
+      del.className='btn btn-danger'; del.textContent='削除';
+      del.addEventListener('click',()=>{ days.splice(idx,1); saveState(); render(); });
+      actions.appendChild(del);
+    }
+    d.appendChild(label); d.appendChild(testsWrap); d.appendChild(actions);
+    container.appendChild(d);
+  });
+  renderAlerts();
+}
+
+function renderAlerts(){
+  const alerts = [];
+  days.forEach((tests, di)=>{
+    for(let i=0;i<tests.length;i++){
+      for(let j=i+1;j<tests.length;j++){
+        const a=tests[i], b=tests[j];
+        if(a===b) continue;
+        const c=SAME_DAY[a][b];
+        if(c && c.l!=='ok'){
+          alerts.push({level:c.l,title:`Day${di+1}: ${a} → ${b} 同日`,reason:c.r});
+        }
+      }
+    }
+  });
+  for(let di=0; di<days.length-1; di++){
+    days[di].forEach(a=>{
+      days[di+1].forEach(b=>{
+        if(a===b) return;
+        const c=NEXT_DAY[a][b];
+        if(c && c.l!=='ok'){
+          alerts.push({level:c.l,title:`Day${di+1} ${a} → Day${di+2} ${b}`,reason:c.r});
+        }
+      });
+    });
+  }
+
+  const banner = $('status-banner');
+  const hasTests = days.some(d=>d.length>0);
+  if(!hasTests){
+    banner.innerHTML = '';
+  } else if(alerts.some(a=>a.level==='ng')){
+    banner.className='status-banner ng';
+    banner.innerHTML=`❌ NG組み合わせがあります(${alerts.filter(a=>a.level==='ng').length}件)`;
+  } else if(alerts.some(a=>a.level==='warn')){
+    banner.className='status-banner warn';
+    banner.innerHTML=`⚠ 注意組み合わせあり(${alerts.filter(a=>a.level==='warn').length}件)`;
+  } else {
+    banner.className='status-banner ok';
+    banner.innerHTML='✅ 組み合わせOK';
+  }
+
+  const aEl = $('alerts');
+  aEl.innerHTML = '';
+  if(alerts.length===0) return;
+  alerts.sort((a,b)=>({ng:0,warn:1,ok:2}[a.level]-{ng:0,warn:1,ok:2}[b.level]));
+  alerts.forEach(a=>{
+    const d = document.createElement('div');
+    d.className = 'alert '+a.level;
+    const icon = a.level==='ng'?'❌':(a.level==='warn'?'⚠':'✅');
+    d.innerHTML = `<strong>${icon} ${a.title}</strong><div class="reason">${a.reason}</div>`;
+    aEl.appendChild(d);
+  });
+}
+
+function renderMatrix(){
+  $('matrix-same').innerHTML = buildMatrix(SAME_DAY,'24h');
+  $('matrix-next').innerHTML = buildMatrix(NEXT_DAY,'48h');
+  document.querySelectorAll('.matrix .cell').forEach(c=>{
+    c.addEventListener('click',()=>{
+      const from=c.dataset.from, to=c.dataset.to, scope=c.dataset.scope;
+      const data = (scope==='24h'?SAME_DAY:NEXT_DAY)[from][to];
+      if(!data) return;
+      const sym = data.l==='ok'?'✅ OK':(data.l==='warn'?'⚠ 注意':'❌ NG');
+      $('detail-title').innerHTML = `${from} → ${to} <small style="font-size:12px;color:var(--muted)">(${scope==='24h'?'同日':'翌日'})</small>`;
+      $('detail-body').innerHTML = `<p><strong>判定:</strong> ${sym}</p><p><strong>理由:</strong> ${data.r}</p>`;
+      $('detail').classList.add('show');
+    });
+  });
+}
+
+function buildMatrix(data, scope){
+  let html = '<table class="matrix"><thead><tr><th></th>';
+  TEST_KEYS.forEach(k=>html += `<th>→${k}</th>`);
+  html += '</tr></thead><tbody>';
+  TEST_KEYS.forEach(from=>{
+    html += `<tr><td class="row-label">${from}↓</td>`;
+    TEST_KEYS.forEach(to=>{
+      const c = data[from][to];
+      if(c===null){
+        html += `<td class="cell same">—</td>`;
+      } else {
+        const sym = c.l==='ok'?'✅':(c.l==='warn'?'⚠':'❌');
+        html += `<td class="cell ${c.l}" data-from="${from}" data-to="${to}" data-scope="${scope}">${sym}</td>`;
+      }
+    });
+    html += '</tr>';
+  });
+  html += '</tbody></table>';
+  return html;
+}
+
+init();
+</script>
+</body>
+</html>
