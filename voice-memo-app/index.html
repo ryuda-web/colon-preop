@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0f172a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="文字起こし">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<title>ボイスメモ文字起こし</title>
+<style>
+:root {
+  --bg: #0f172a;
+  --bg2: #1e293b;
+  --bg3: #334155;
+  --text: #e2e8f0;
+  --muted: #94a3b8;
+  --accent: #38bdf8;
+  --accent2: #0ea5e9;
+  --green: #4ade80;
+  --red: #f87171;
+  --amber: #fbbf24;
+  --radius: 14px;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+header {
+  padding: calc(14px + env(safe-area-inset-top)) 16px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  background: rgba(15,23,42,.92);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  z-index: 10;
+  border-bottom: 1px solid var(--bg3);
+}
+header h1 { font-size: 17px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+header h1 .mic { color: var(--accent); }
+.icon-btn {
+  background: var(--bg2);
+  border: 1px solid var(--bg3);
+  color: var(--text);
+  border-radius: 10px;
+  padding: 7px 12px;
+  font-size: 13px;
+  cursor: pointer;
+}
+main { padding: 16px; max-width: 640px; margin: 0 auto; }
+.card {
+  background: var(--bg2);
+  border: 1px solid var(--bg3);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin-bottom: 14px;
+}
+.card h2 { font-size: 14px; color: var(--muted); margin-bottom: 10px; font-weight: 600; }
+.big-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.big-btn {
+  border: none;
+  border-radius: var(--radius);
+  padding: 18px 10px;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  color: #082f49;
+  background: linear-gradient(135deg, #7dd3fc, #38bdf8);
+}
+.big-btn.secondary { background: linear-gradient(135deg, #fda4af, #fb7185); color: #4c0519; }
+.big-btn .emoji { font-size: 26px; }
+.big-btn:active { transform: scale(.97); }
+.big-btn:disabled { opacity: .5; }
+.hint { font-size: 12px; color: var(--muted); margin-top: 10px; line-height: 1.6; }
+.hint b { color: var(--text); }
+button.text-btn {
+  background: none; border: none; color: var(--accent); font-size: 13px; cursor: pointer; padding: 4px;
+}
+/* recording */
+#recPanel { display: none; text-align: center; }
+#recPanel.active { display: block; }
+#recTime { font-size: 34px; font-variant-numeric: tabular-nums; font-weight: 700; margin: 8px 0; }
+.rec-dot {
+  display: inline-block; width: 10px; height: 10px; border-radius: 50%;
+  background: var(--red); margin-right: 8px; animation: blink 1s infinite;
+}
+@keyframes blink { 50% { opacity: .2; } }
+.rec-actions { display: flex; gap: 10px; justify-content: center; margin-top: 8px; }
+.pill-btn {
+  border: none; border-radius: 999px; padding: 12px 26px; font-size: 15px; font-weight: 700; cursor: pointer;
+}
+.pill-btn.stop { background: var(--red); color: #450a0a; }
+.pill-btn.cancel { background: var(--bg3); color: var(--text); }
+/* progress */
+#progress { display: none; }
+#progress.active { display: block; }
+.bar-wrap { background: var(--bg3); border-radius: 999px; height: 10px; overflow: hidden; margin: 10px 0 6px; }
+.bar { background: linear-gradient(90deg, var(--accent2), var(--accent)); height: 100%; width: 0%; transition: width .4s; border-radius: 999px; }
+#progLabel { font-size: 13px; color: var(--muted); }
+.spinner {
+  display: inline-block; width: 14px; height: 14px; border: 2px solid var(--bg3);
+  border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite;
+  vertical-align: -2px; margin-right: 6px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+/* result */
+#resultCard { display: none; }
+#resultCard.active { display: block; }
+#resultText {
+  width: 100%;
+  min-height: 180px;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--bg3);
+  border-radius: 10px;
+  padding: 12px;
+  font-size: 15px;
+  line-height: 1.8;
+  resize: vertical;
+  font-family: inherit;
+}
+.result-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.chip-btn {
+  background: var(--bg3); color: var(--text); border: none; border-radius: 999px;
+  padding: 9px 14px; font-size: 13px; font-weight: 600; cursor: pointer;
+}
+.chip-btn.primary { background: var(--accent2); color: #082f49; }
+.chip-btn:active { transform: scale(.96); }
+.chip-btn:disabled { opacity: .5; }
+/* history */
+.hist-item {
+  border-bottom: 1px solid var(--bg3); padding: 12px 2px; cursor: pointer;
+}
+.hist-item:last-child { border-bottom: none; }
+.hist-title { font-size: 14px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hist-meta { font-size: 11px; color: var(--muted); margin-top: 3px; }
+.empty { color: var(--muted); font-size: 13px; text-align: center; padding: 10px 0; }
+/* settings modal */
+.modal {
+  display: none; position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 50;
+  align-items: flex-end; justify-content: center;
+}
+.modal.active { display: flex; }
+.sheet {
+  background: var(--bg2); width: 100%; max-width: 640px;
+  border-radius: 20px 20px 0 0; padding: 20px 16px calc(24px + env(safe-area-inset-bottom));
+  max-height: 88vh; overflow-y: auto;
+}
+.sheet h2 { font-size: 17px; margin-bottom: 14px; }
+.field { margin-bottom: 16px; }
+.field label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px; font-weight: 600; }
+.field input, .field textarea, .field select {
+  width: 100%; background: var(--bg); color: var(--text);
+  border: 1px solid var(--bg3); border-radius: 10px; padding: 11px 12px; font-size: 15px;
+  font-family: inherit;
+}
+.field textarea { min-height: 70px; resize: vertical; line-height: 1.6; }
+.field .note { font-size: 11px; color: var(--muted); margin-top: 5px; line-height: 1.5; }
+.field .note a { color: var(--accent); }
+.sheet-actions { display: flex; gap: 10px; margin-top: 6px; }
+.sheet-actions button { flex: 1; padding: 13px; border-radius: 12px; border: none; font-size: 15px; font-weight: 700; cursor: pointer; }
+.sheet-actions .save { background: var(--accent2); color: #082f49; }
+.sheet-actions .close { background: var(--bg3); color: var(--text); }
+/* toast */
+#toast {
+  position: fixed; bottom: calc(28px + env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%) translateY(20px);
+  background: var(--bg3); color: var(--text); padding: 11px 20px; border-radius: 999px;
+  font-size: 13px; font-weight: 600; opacity: 0; pointer-events: none; transition: all .25s; z-index: 100;
+  white-space: nowrap; box-shadow: 0 4px 20px rgba(0,0,0,.4);
+}
+#toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+.warn-banner {
+  background: rgba(251,191,36,.12); border: 1px solid rgba(251,191,36,.4);
+  border-radius: 10px; padding: 10px 12px; font-size: 12px; color: var(--amber);
+  margin-bottom: 14px; line-height: 1.6; cursor: pointer;
+}
+details.guide { margin-top: 6px; }
+details.guide summary { font-size: 13px; color: var(--accent); cursor: pointer; }
+details.guide ol { font-size: 12.5px; color: var(--muted); padding-left: 20px; margin-top: 8px; line-height: 1.9; }
+</style>
+</head>
+<body>
+<header>
+  <h1><span class="mic">●</span> ボイスメモ文字起こし</h1>
+  <button class="icon-btn" id="settingsBtn">⚙️ 設定</button>
+</header>
+
+<main>
+  <div class="warn-banner" id="keyBanner" style="display:none">
+    ⚠️ OpenAI APIキーが未設定です。タップして設定してください(文字起こしに必須)。
+  </div>
+
+  <!-- input -->
+  <div class="card" id="inputCard">
+    <div class="big-btns">
+      <button class="big-btn" id="fileBtn">
+        <span class="emoji">📁</span>ファイルを選択
+        <span style="font-size:11px;font-weight:400">ボイスメモ / 音声ファイル</span>
+      </button>
+      <button class="big-btn secondary" id="recBtn">
+        <span class="emoji">🎙️</span>その場で録音
+        <span style="font-size:11px;font-weight:400">マイクで直接録音</span>
+      </button>
+    </div>
+    <input type="file" id="fileInput" accept="audio/*,video/mp4,.m4a,.mp3,.wav,.aac,.mp4,.ogg,.webm,.flac" hidden>
+    <details class="guide">
+      <summary>📲 iPhoneのボイスメモから取り込む手順</summary>
+      <ol>
+        <li>「ボイスメモ」アプリで対象の録音を開く</li>
+        <li>「…」→「共有」→「<b>"ファイル"に保存</b>」を選択</li>
+        <li>このアプリで「ファイルを選択」→ 保存した場所から選ぶ</li>
+      </ol>
+    </details>
+    <p class="hint">
+      高精度エンジン(OpenAI gpt-4o-transcribe)で日本語を文字起こしします。
+      <b>専門用語・人名は設定の「カスタム辞書」に登録すると認識精度が大きく向上します。</b>
+      25MB超の長い録音は自動で分割して処理します。
+    </p>
+  </div>
+
+  <!-- recording panel -->
+  <div class="card" id="recPanel">
+    <div><span class="rec-dot"></span>録音中</div>
+    <div id="recTime">0:00</div>
+    <div class="rec-actions">
+      <button class="pill-btn stop" id="recStopBtn">■ 停止して文字起こし</button>
+      <button class="pill-btn cancel" id="recCancelBtn">キャンセル</button>
+    </div>
+  </div>
+
+  <!-- progress -->
+  <div class="card" id="progress">
+    <h2><span class="spinner"></span>処理中</h2>
+    <div class="bar-wrap"><div class="bar" id="bar"></div></div>
+    <div id="progLabel">準備中…</div>
+  </div>
+
+  <!-- result -->
+  <div class="card" id="resultCard">
+    <h2 id="resultTitle">文字起こし結果</h2>
+    <textarea id="resultText" placeholder="ここに結果が表示されます"></textarea>
+    <div class="result-actions">
+      <button class="chip-btn primary" id="copyBtn">📋 コピー</button>
+      <button class="chip-btn" id="shareBtn">↗︎ 共有</button>
+      <button class="chip-btn" id="polishBtn">✨ 整形(句読点・段落)</button>
+      <button class="chip-btn" id="fillerBtn">🧹 フィラー除去</button>
+      <button class="chip-btn" id="summaryBtn">📝 要約</button>
+    </div>
+  </div>
+
+  <!-- history -->
+  <div class="card">
+    <h2>履歴(この端末に保存)</h2>
+    <div id="histList"><div class="empty">まだ履歴がありません</div></div>
+    <div style="text-align:center;margin-top:6px">
+      <button class="text-btn" id="clearHistBtn">履歴をすべて削除</button>
+    </div>
+  </div>
+</main>
+
+<!-- settings modal -->
+<div class="modal" id="settingsModal">
+  <div class="sheet">
+    <h2>⚙️ 設定</h2>
+    <div class="field">
+      <label>OpenAI APIキー(必須)</label>
+      <input type="password" id="apiKeyInput" placeholder="sk-..." autocomplete="off">
+      <div class="note">
+        <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener">platform.openai.com/api-keys</a>
+        で発行できます。キーはこの端末内(localStorage)のみに保存され、OpenAI以外には送信されません。
+        料金目安: 約 $0.006/分(gpt-4o-transcribe)。
+      </div>
+    </div>
+    <div class="field">
+      <label>文字起こしモデル</label>
+      <select id="sttModelInput">
+        <option value="gpt-4o-transcribe">gpt-4o-transcribe(最高精度・推奨)</option>
+        <option value="gpt-4o-mini-transcribe">gpt-4o-mini-transcribe(高速・低価格)</option>
+        <option value="whisper-1">whisper-1(従来モデル)</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>カスタム辞書(精度向上の鍵)</label>
+      <textarea id="dictInput" placeholder="例: 大腸内視鏡、君津中央病院、S状結腸、ESD、吻合部&#10;読点・改行区切りで固有名詞や専門用語を列挙"></textarea>
+      <div class="note">ここに書いた語句は認識ヒントとしてエンジンに渡され、専門用語・人名・社名などの誤変換が大幅に減ります。</div>
+    </div>
+    <div class="field">
+      <label>整形・要約用モデル</label>
+      <select id="chatModelInput">
+        <option value="gpt-4o-mini">gpt-4o-mini(推奨・低価格)</option>
+        <option value="gpt-4o">gpt-4o(高品質)</option>
+      </select>
+    </div>
+    <div class="sheet-actions">
+      <button class="save" id="saveSettingsBtn">保存</button>
+      <button class="close" id="closeSettingsBtn">閉じる</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+'use strict';
+const APP_VERSION = 'v1.0.0';
+const API_BASE = 'https://api.openai.com/v1';
+const DIRECT_UPLOAD_LIMIT = 24 * 1024 * 1024; // 25MB API上限に対し安全マージン
+const TARGET_RATE = 16000;
+const $ = id => document.getElementById(id);
+
+/* ---------- settings ---------- */
+const settings = {
+  get apiKey()    { return localStorage.getItem('vm_apiKey') || ''; },
+  get sttModel()  { return localStorage.getItem('vm_sttModel') || 'gpt-4o-transcribe'; },
+  get chatModel() { return localStorage.getItem('vm_chatModel') || 'gpt-4o-mini'; },
+  get dict()      { return localStorage.getItem('vm_dict') || ''; },
+  save(k, v)      { localStorage.setItem('vm_' + k, v); },
+};
+
+function refreshKeyBanner() {
+  $('keyBanner').style.display = settings.apiKey ? 'none' : 'block';
+}
+function openSettings() {
+  $('apiKeyInput').value = settings.apiKey;
+  $('sttModelInput').value = settings.sttModel;
+  $('chatModelInput').value = settings.chatModel;
+  $('dictInput').value = settings.dict;
+  $('settingsModal').classList.add('active');
+}
+$('settingsBtn').onclick = openSettings;
+$('keyBanner').onclick = openSettings;
+$('closeSettingsBtn').onclick = () => $('settingsModal').classList.remove('active');
+$('settingsModal').onclick = e => { if (e.target === $('settingsModal')) $('settingsModal').classList.remove('active'); };
+$('saveSettingsBtn').onclick = () => {
+  settings.save('apiKey', $('apiKeyInput').value.trim());
+  settings.save('sttModel', $('sttModelInput').value);
+  settings.save('chatModel', $('chatModelInput').value);
+  settings.save('dict', $('dictInput').value.trim());
+  $('settingsModal').classList.remove('active');
+  refreshKeyBanner();
+  toast('設定を保存しました');
+};
+
+/* ---------- toast ---------- */
+let toastTimer;
+function toast(msg) {
+  const t = $('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+/* ---------- progress ---------- */
+function showProgress(label, pct) {
+  $('progress').classList.add('active');
+  $('progLabel').textContent = label;
+  $('bar').style.width = (pct ?? 0) + '%';
+}
+function hideProgress() { $('progress').classList.remove('active'); }
+
+/* ---------- transcription core ---------- */
+function buildPrompt(prevTail) {
+  // カスタム辞書 + 直前チャンク末尾を認識ヒントとして渡す(精度向上の核)
+  const parts = [];
+  if (settings.dict) parts.push('用語: ' + settings.dict.replace(/\n/g, '、'));
+  if (prevTail) parts.push(prevTail);
+  return parts.join('\n').slice(-1800); // promptは長すぎると拒否されるため制限
+}
+
+async function transcribeBlob(blob, filename, prevTail) {
+  const fd = new FormData();
+  fd.append('file', blob, filename);
+  fd.append('model', settings.sttModel);
+  fd.append('language', 'ja');
+  fd.append('temperature', '0');
+  fd.append('response_format', settings.sttModel === 'whisper-1' ? 'text' : 'json');
+  const prompt = buildPrompt(prevTail);
+  if (prompt) fd.append('prompt', prompt);
+
+  const res = await fetch(API_BASE + '/audio/transcriptions', {
+    method: 'POST',
+    headers: { 'Authorization': 'Bearer ' + settings.apiKey },
+    body: fd,
+  });
+  if (!res.ok) throw await apiError(res);
+  if (settings.sttModel === 'whisper-1') return (await res.text()).trim();
+  const data = await res.json();
+  return (data.text || '').trim();
+}
+
+async function apiError(res) {
+  let msg = 'APIエラー (' + res.status + ')';
+  try {
+    const data = await res.json();
+    if (data.error && data.error.message) msg += ': ' + data.error.message;
+  } catch (_) {}
+  if (res.status === 401) msg = 'APIキーが無効です。設定を確認してください。';
+  if (res.status === 429) msg = 'レート制限/残高不足です。OpenAIの利用状況を確認してください。';
+  if (res.status === 413) msg = 'ファイルが大きすぎます(25MB上限)。';
+  return new Error(msg);
+}
+
+/* ---------- audio decode & chunking (for >24MB) ---------- */
+async function decodeAndChunk(file, onStatus) {
+  onStatus('音声をデコード中…(長い録音は時間がかかります)');
+  const arrayBuf = await file.arrayBuffer();
+  const AC = window.AudioContext || window.webkitAudioContext;
+  const ac = new AC();
+  let audioBuf;
+  try {
+    audioBuf = await ac.decodeAudioData(arrayBuf);
+  } finally {
+    ac.close && ac.close();
+  }
+
+  // 16kHzモノラルへダウンサンプル(失敗時は元レートのまま)
+  let rate = TARGET_RATE;
+  let rendered;
+  try {
+    const oac = new OfflineAudioContext(1, Math.ceil(audioBuf.duration * rate), rate);
+    const src = oac.createBufferSource();
+    src.buffer = audioBuf;
+    src.connect(oac.destination);
+    src.start();
+    onStatus('ダウンサンプル中…');
+    rendered = await oac.startRendering();
+  } catch (_) {
+    rate = audioBuf.sampleRate;
+    // モノラル化のみ
+    const mono = new Float32Array(audioBuf.length);
+    for (let ch = 0; ch < audioBuf.numberOfChannels; ch++) {
+      const d = audioBuf.getChannelData(ch);
+      for (let i = 0; i < d.length; i++) mono[i] += d[i] / audioBuf.numberOfChannels;
+    }
+    rendered = { getChannelData: () => mono, length: mono.length, duration: audioBuf.duration };
+  }
+
+  // 25MB制限内に収まるチャンク秒数(16bitモノラル: rate*2 byte/s)
+  const maxSec = Math.floor((DIRECT_UPLOAD_LIMIT - 44) / (rate * 2));
+  const chunkSec = Math.min(600, maxSec);
+  const data = rendered.getChannelData(0);
+  const perChunk = chunkSec * rate;
+  const chunks = [];
+  for (let off = 0; off < data.length; off += perChunk) {
+    chunks.push(encodeWav(data.subarray(off, Math.min(off + perChunk, data.length)), rate));
+  }
+  return chunks;
+}
+
+function encodeWav(samples, rate) {
+  const buf = new ArrayBuffer(44 + samples.length * 2);
+  const v = new DataView(buf);
+  const wstr = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+  wstr(0, 'RIFF'); v.setUint32(4, 36 + samples.length * 2, true); wstr(8, 'WAVE');
+  wstr(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, rate, true); v.setUint32(28, rate * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true);
+  wstr(36, 'data'); v.setUint32(40, samples.length * 2, true);
+  let o = 44;
+  for (let i = 0; i < samples.length; i++, o += 2) {
+    const s = Math.max(-1, Math.min(1, samples[i]));
+    v.setInt16(o, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+  }
+  return new Blob([buf], { type: 'audio/wav' });
+}
+
+/* ---------- main flow ---------- */
+let busy = false;
+
+async function processAudio(blob, name) {
+  if (!settings.apiKey) { openSettings(); toast('先にAPIキーを設定してください'); return; }
+  if (busy) return;
+  busy = true;
+  $('resultCard').classList.remove('active');
+  try {
+    let text = '';
+    if (blob.size <= DIRECT_UPLOAD_LIMIT) {
+      showProgress('文字起こし中…(' + fmtMB(blob.size) + ')', 30);
+      text = await transcribeBlob(blob, name);
+      showProgress('完了', 100);
+    } else {
+      showProgress('大きいファイルのため分割処理します(' + fmtMB(blob.size) + ')', 2);
+      const chunks = await decodeAndChunk(blob, s => showProgress(s, 6));
+      const parts = [];
+      for (let i = 0; i < chunks.length; i++) {
+        showProgress(`文字起こし中… (${i + 1}/${chunks.length})`, 10 + 88 * (i / chunks.length));
+        const prevTail = parts.length ? parts[parts.length - 1].slice(-200) : '';
+        parts.push(await transcribeBlob(chunks[i], `chunk${i}.wav`, prevTail));
+      }
+      text = parts.join('\n');
+      showProgress('完了', 100);
+    }
+    showResult(name, text);
+    saveHistory(name, text);
+    toast('文字起こしが完了しました');
+  } catch (err) {
+    console.error(err);
+    alert('エラー: ' + err.message);
+  } finally {
+    busy = false;
+    setTimeout(hideProgress, 600);
+  }
+}
+
+function fmtMB(b) { return (b / 1024 / 1024).toFixed(1) + 'MB'; }
+
+function showResult(title, text) {
+  $('resultTitle').textContent = title || '文字起こし結果';
+  $('resultText').value = text;
+  $('resultCard').classList.add('active');
+  $('resultCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+/* ---------- file input ---------- */
+$('fileBtn').onclick = () => $('fileInput').click();
+$('fileInput').onchange = e => {
+  const f = e.target.files[0];
+  if (f) processAudio(f, f.name);
+  e.target.value = '';
+};
+
+/* ---------- recording ---------- */
+let mediaRecorder = null, recChunks = [], recTimer = null, recStart = 0, recCancelled = false;
+
+$('recBtn').onclick = async () => {
+  if (!settings.apiKey) { openSettings(); toast('先にAPIキーを設定してください'); return; }
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: false, noiseSuppression: true }
+    });
+    recChunks = []; recCancelled = false;
+    mediaRecorder = new MediaRecorder(stream);
+    mediaRecorder.ondataavailable = e => { if (e.data.size) recChunks.push(e.data); };
+    mediaRecorder.onstop = () => {
+      stream.getTracks().forEach(t => t.stop());
+      clearInterval(recTimer);
+      $('recPanel').classList.remove('active');
+      $('inputCard').style.display = '';
+      if (recCancelled || !recChunks.length) return;
+      const type = mediaRecorder.mimeType || 'audio/mp4';
+      const ext = type.includes('mp4') ? 'm4a' : type.includes('webm') ? 'webm' : 'audio';
+      const blob = new Blob(recChunks, { type });
+      const stamp = new Date().toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+      processAudio(blob, `録音 ${stamp}.${ext}`);
+    };
+    mediaRecorder.start(1000);
+    recStart = Date.now();
+    $('recTime').textContent = '0:00';
+    $('recPanel').classList.add('active');
+    $('inputCard').style.display = 'none';
+    recTimer = setInterval(() => {
+      const s = Math.floor((Date.now() - recStart) / 1000);
+      $('recTime').textContent = Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+    }, 500);
+  } catch (err) {
+    alert('マイクにアクセスできません: ' + err.message + '\n(設定 > Safari > マイク を確認してください)');
+  }
+};
+$('recStopBtn').onclick = () => { if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop(); };
+$('recCancelBtn').onclick = () => {
+  recCancelled = true;
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
+};
+
+/* ---------- result actions ---------- */
+$('copyBtn').onclick = async () => {
+  try {
+    await navigator.clipboard.writeText($('resultText').value);
+    toast('コピーしました');
+  } catch (_) {
+    $('resultText').select();
+    document.execCommand('copy');
+    toast('コピーしました');
+  }
+};
+$('shareBtn').onclick = async () => {
+  const text = $('resultText').value;
+  if (navigator.share) {
+    try { await navigator.share({ text }); } catch (_) {}
+  } else {
+    await navigator.clipboard.writeText(text);
+    toast('共有非対応のためコピーしました');
+  }
+};
+
+async function aiRewrite(mode, btn) {
+  const text = $('resultText').value.trim();
+  if (!text) { toast('テキストがありません'); return; }
+  if (!settings.apiKey) { openSettings(); return; }
+  const prompts = {
+    polish: '次の文字起こしテキストを、内容を一切変えずに、適切な句読点・段落分けを加えて読みやすく整形してください。話者の言葉遣いは保ち、要約や省略はしないでください。整形後のテキストのみを出力してください。',
+    filler: '次の文字起こしテキストから「えー」「あのー」「まあ」などのフィラー(言い淀み)と無意味な繰り返しだけを除去し、それ以外の内容・言い回しは変えずに出力してください。出力はテキストのみ。',
+    summary: '次の文字起こしテキストを日本語で要約してください。冒頭に3行以内の概要、その後に「・」で始まる重要ポイントの箇条書きを出力してください。',
+  };
+  btn.disabled = true;
+  const orig = btn.textContent;
+  btn.textContent = '処理中…';
+  try {
+    const res = await fetch(API_BASE + '/chat/completions', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + settings.apiKey, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: settings.chatModel,
+        messages: [
+          { role: 'system', content: prompts[mode] },
+          { role: 'user', content: text },
+        ],
+        temperature: 0.2,
+      }),
+    });
+    if (!res.ok) throw await apiError(res);
+    const data = await res.json();
+    const out = data.choices[0].message.content.trim();
+    if (mode === 'summary') {
+      $('resultText').value = '【要約】\n' + out + '\n\n----- 元の文字起こし -----\n' + text;
+    } else {
+      $('resultText').value = out;
+    }
+    saveHistory($('resultTitle').textContent + (mode === 'summary' ? '(要約)' : ''), $('resultText').value);
+    toast('完了しました');
+  } catch (err) {
+    alert('エラー: ' + err.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = orig;
+  }
+}
+$('polishBtn').onclick = e => aiRewrite('polish', e.target);
+$('fillerBtn').onclick = e => aiRewrite('filler', e.target);
+$('summaryBtn').onclick = e => aiRewrite('summary', e.target);
+
+/* ---------- history ---------- */
+function getHistory() {
+  try { return JSON.parse(localStorage.getItem('vm_history') || '[]'); } catch (_) { return []; }
+}
+function saveHistory(title, text) {
+  const hist = getHistory();
+  hist.unshift({ title, text, at: Date.now() });
+  // localStorage容量対策: 最大20件・合計約2MBまで
+  let total = 0;
+  const trimmed = [];
+  for (const h of hist.slice(0, 20)) {
+    total += h.text.length;
+    if (total > 2_000_000) break;
+    trimmed.push(h);
+  }
+  try { localStorage.setItem('vm_history', JSON.stringify(trimmed)); } catch (_) {}
+  renderHistory();
+}
+function renderHistory() {
+  const hist = getHistory();
+  const el = $('histList');
+  if (!hist.length) { el.innerHTML = '<div class="empty">まだ履歴がありません</div>'; return; }
+  el.innerHTML = '';
+  hist.forEach((h, i) => {
+    const div = document.createElement('div');
+    div.className = 'hist-item';
+    const d = new Date(h.at);
+    div.innerHTML = `<div class="hist-title"></div>
+      <div class="hist-meta">${d.toLocaleString('ja-JP')}・${h.text.length}文字</div>`;
+    div.querySelector('.hist-title').textContent = h.title || '(無題)';
+    div.onclick = () => showResult(h.title, h.text);
+    el.appendChild(div);
+  });
+}
+$('clearHistBtn').onclick = () => {
+  if (confirm('履歴をすべて削除しますか?')) {
+    localStorage.removeItem('vm_history');
+    renderHistory();
+    toast('削除しました');
+  }
+};
+
+/* ---------- init ---------- */
+refreshKeyBanner();
+renderHistory();
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+}
+</script>
+</body>
+</html>
