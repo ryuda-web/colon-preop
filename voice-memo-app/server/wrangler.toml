@@ -1,0 +1,10 @@
+name = "voice-memo-diarize"
+main = "worker.js"
+compatibility_date = "2026-01-01"
+
+# --- 必須シークレット(コマンドで設定。ファイルには書かない)---
+#   wrangler secret put DEEPGRAM_API_KEY
+#
+# --- 推奨: 悪用防止のため許可オリジンを固定 ---
+# [vars]
+# ALLOWED_ORIGIN = "https://ryuda-web.github.io"

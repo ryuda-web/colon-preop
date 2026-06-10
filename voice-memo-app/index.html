@@ -191,6 +191,13 @@ button.text-btn {
 details.guide { margin-top: 6px; }
 details.guide summary { font-size: 13px; color: var(--accent); cursor: pointer; }
 details.guide ol { font-size: 12.5px; color: var(--muted); padding-left: 20px; margin-top: 8px; line-height: 1.9; }
+.toggle-row {
+  display: flex; align-items: center; gap: 10px; margin-top: 14px;
+  padding: 12px; background: var(--bg); border: 1px solid var(--bg3); border-radius: 10px;
+  cursor: pointer; font-size: 13.5px;
+}
+.toggle-row input { width: 20px; height: 20px; accent-color: var(--accent2); flex-shrink: 0; }
+.toggle-row .sub { display: block; font-size: 11px; color: var(--muted); margin-top: 2px; }
 </style>
 </head>
 <body>
@@ -217,6 +224,12 @@ details.guide ol { font-size: 12.5px; color: var(--muted); padding-left: 20px; m
       </button>
     </div>
     <input type="file" id="fileInput" accept="audio/*,video/mp4,.m4a,.mp3,.wav,.aac,.mp4,.ogg,.webm,.flac" hidden>
+    <label class="toggle-row" id="diarizeRow">
+      <input type="checkbox" id="diarizeToggle">
+      <span>🗣 話者を分離する(誰が話したかを区別)
+        <span class="sub">Deepgramエンジンを使用。設定で「話者分離サーバーURL」が必要です</span>
+      </span>
+    </label>
     <details class="guide">
       <summary>📲 iPhoneのボイスメモから取り込む手順</summary>
       <ol>
@@ -301,6 +314,15 @@ details.guide ol { font-size: 12.5px; color: var(--muted); padding-left: 20px; m
       <div class="note">ここに書いた語句は認識ヒントとしてエンジンに渡され、専門用語・人名・社名などの誤変換が大幅に減ります。</div>
     </div>
     <div class="field">
+      <label>話者分離サーバーURL(任意・話者分離を使う場合のみ)</label>
+      <input type="url" id="diarizeUrlInput" placeholder="https://voice-memo-diarize.xxx.workers.dev" autocomplete="off">
+      <div class="note">
+        話者分離(誰が話したか)は声紋ベースの専用エンジン(Deepgram)が必要で、ブラウザから直接呼べないため
+        軽量サーバー(Cloudflare Worker)を経由します。設定手順は <code>server/README.md</code> 参照。
+        Deepgramキーはサーバー側に保管され端末には残りません。
+      </div>
+    </div>
+    <div class="field">
       <label>整形・要約用モデル</label>
       <select id="chatModelInput">
         <option value="gpt-4o-mini">gpt-4o-mini(推奨・低価格)</option>
@@ -318,7 +340,7 @@ details.guide ol { font-size: 12.5px; color: var(--muted); padding-left: 20px; m
 
 <script>
 'use strict';
-const APP_VERSION = 'v1.1.0';
+const APP_VERSION = 'v1.2.0';
 const API_BASE = 'https://api.openai.com/v1';
 const DIRECT_UPLOAD_LIMIT = 24 * 1024 * 1024; // 25MB API上限に対し安全マージン
 const TARGET_RATE = 16000;
@@ -331,17 +353,24 @@ const settings = {
   get sttModel()  { return localStorage.getItem('vm_sttModel') || 'gpt-4o-transcribe'; },
   get chatModel() { return localStorage.getItem('vm_chatModel') || 'gpt-4o-mini'; },
   get dict()      { return localStorage.getItem('vm_dict') || ''; },
+  get diarizeUrl(){ return localStorage.getItem('vm_diarizeUrl') || ''; },
   save(k, v)      { localStorage.setItem('vm_' + k, v); },
 };
 
 function refreshKeyBanner() {
-  $('keyBanner').style.display = settings.apiKey ? 'none' : 'block';
+  const diarize = $('diarizeToggle').checked;
+  const needs = diarize ? !settings.diarizeUrl : !settings.apiKey;
+  $('keyBanner').textContent = diarize
+    ? '⚠️ 話者分離サーバーURLが未設定です。タップして設定してください。'
+    : '⚠️ OpenAI APIキーが未設定です。タップして設定してください(文字起こしに必須)。';
+  $('keyBanner').style.display = needs ? 'block' : 'none';
 }
 function openSettings() {
   $('apiKeyInput').value = settings.apiKey;
   $('sttModelInput').value = settings.sttModel;
   $('chatModelInput').value = settings.chatModel;
   $('dictInput').value = settings.dict;
+  $('diarizeUrlInput').value = settings.diarizeUrl;
   $('settingsModal').classList.add('active');
 }
 $('settingsBtn').onclick = openSettings;
@@ -353,6 +382,7 @@ $('saveSettingsBtn').onclick = () => {
   settings.save('sttModel', $('sttModelInput').value);
   settings.save('chatModel', $('chatModelInput').value);
   settings.save('dict', $('dictInput').value.trim());
+  settings.save('diarizeUrl', $('diarizeUrlInput').value.trim());
   $('settingsModal').classList.remove('active');
   refreshKeyBanner();
   toast('設定を保存しました');
@@ -535,6 +565,8 @@ document.addEventListener('visibilitychange', () => {
 });
 
 async function processAudio(blob, name) {
+  // 話者分離トグルがONならDeepgram経由のパスへ
+  if ($('diarizeToggle').checked) return processDiarize(blob, name);
   if (!settings.apiKey) { openSettings(); toast('先にAPIキーを設定してください'); return; }
   if (busy) return;
   busy = true;
@@ -600,6 +632,58 @@ function fmtTime(sec) {
   return m + ':' + String(s).padStart(2, '0');
 }
 
+/* ---------- speaker diarization (via Deepgram proxy) ---------- */
+async function processDiarize(blob, name) {
+  const url = settings.diarizeUrl;
+  if (!url) { openSettings(); toast('設定で「話者分離サーバーURL」を登録してください'); return; }
+  if (busy) return;
+  busy = true;
+  $('resultCard').classList.remove('active');
+  $('resumeBtn').style.display = 'none';
+  await acquireWakeLock();
+  try {
+    showProgress('話者分離して文字起こし中…(' + fmtMB(blob.size) + ')。長い録音は数分かかります', 35);
+    const headers = { 'Content-Type': blob.type || 'application/octet-stream' };
+    if (settings.dict) headers['X-Keyterms'] = encodeURIComponent(settings.dict);
+    const res = await fetch(url, { method: 'POST', headers, body: blob });
+    if (!res.ok) {
+      let msg = 'サーバーエラー (' + res.status + ')';
+      try { const e = await res.json(); if (e.error) msg += ': ' + e.error; } catch (_) {}
+      if (res.status === 0 || res.status === 502) msg += '(サーバーURL・CORS設定を確認してください)';
+      throw new Error(msg);
+    }
+    const data = await res.json();
+    const text = formatDiarized(data.utterances || []);
+    showProgress('完了', 100);
+    finishJob(name + '(話者分離)', text);
+  } catch (err) {
+    console.error(err);
+    alert('エラー: ' + err.message + '\n\n話者分離サーバー(Cloudflare Worker)が正しくデプロイ・設定されているか確認してください。');
+  } finally {
+    busy = false;
+    releaseWakeLock();
+    setTimeout(hideProgress, 600);
+  }
+}
+
+function formatDiarized(utts) {
+  if (!utts.length) return '(話者を検出できませんでした。録音内容をご確認ください)';
+  const lines = [];
+  let cur = null, buf = '';
+  for (const u of utts) {
+    const sp = (u.speaker == null ? 0 : u.speaker);
+    if (sp !== cur) {
+      if (buf) lines.push('話者' + (cur + 1) + ': ' + buf.trim());
+      cur = sp; buf = u.text || '';
+    } else {
+      buf += ' ' + (u.text || '');
+    }
+  }
+  if (buf) lines.push('話者' + (cur + 1) + ': ' + buf.trim());
+  return lines.join('\n\n') +
+    '\n\n────────\n※「話者1」等は仮ラベルです。下のテキストを直接編集して名前(例: 医師/患者)に置き換えられます。';
+}
+
 function showResult(title, text) {
   $('resultTitle').textContent = title || '文字起こし結果';
   $('resultText').value = text;
@@ -619,7 +703,9 @@ $('fileInput').onchange = e => {
 let mediaRecorder = null, recChunks = [], recTimer = null, recStart = 0, recCancelled = false;
 
 $('recBtn').onclick = async () => {
-  if (!settings.apiKey) { openSettings(); toast('先にAPIキーを設定してください'); return; }
+  const diarize = $('diarizeToggle').checked;
+  if (diarize && !settings.diarizeUrl) { openSettings(); toast('設定で「話者分離サーバーURL」を登録してください'); return; }
+  if (!diarize && !settings.apiKey) { openSettings(); toast('先にAPIキーを設定してください'); return; }
   try {
     const stream = await navigator.mediaDevices.getUserMedia({
       audio: { echoCancellation: false, noiseSuppression: true }
@@ -787,6 +873,11 @@ $('clearHistBtn').onclick = () => {
 };
 
 /* ---------- init ---------- */
+$('diarizeToggle').checked = localStorage.getItem('vm_diarize') === '1';
+$('diarizeToggle').onchange = () => {
+  localStorage.setItem('vm_diarize', $('diarizeToggle').checked ? '1' : '0');
+  refreshKeyBanner();
+};
 refreshKeyBanner();
 renderHistory();
 if ('serviceWorker' in navigator) {
