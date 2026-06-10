@@ -1,6 +1,6 @@
 // ボイスメモ文字起こし - Service Worker
 // キャッシュ名にバージョンを含めて更新時に自動クリーンアップ
-const CACHE_NAME = 'voice-memo-v1.2.0';
+const CACHE_NAME = 'voice-memo-v1.3.0';
 const ASSETS = [
   './',
   './index.html',

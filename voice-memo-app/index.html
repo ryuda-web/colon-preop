@@ -225,7 +225,7 @@ details.guide ol { font-size: 12.5px; color: var(--muted); padding-left: 20px; m
     </div>
     <input type="file" id="fileInput" accept="audio/*,video/mp4,.m4a,.mp3,.wav,.aac,.mp4,.ogg,.webm,.flac" hidden>
     <label class="toggle-row" id="diarizeRow">
-      <input type="checkbox" id="diarizeToggle">
+      <input type="checkbox" id="diarizeToggle" checked>
       <span>🗣 話者を分離する(誰が話したかを区別)
         <span class="sub">Deepgramエンジンを使用。設定で「話者分離サーバーURL」が必要です</span>
       </span>
@@ -340,7 +340,7 @@ details.guide ol { font-size: 12.5px; color: var(--muted); padding-left: 20px; m
 
 <script>
 'use strict';
-const APP_VERSION = 'v1.2.0';
+const APP_VERSION = 'v1.3.0';
 const API_BASE = 'https://api.openai.com/v1';
 const DIRECT_UPLOAD_LIMIT = 24 * 1024 * 1024; // 25MB API上限に対し安全マージン
 const TARGET_RATE = 16000;
@@ -873,7 +873,8 @@ $('clearHistBtn').onclick = () => {
 };
 
 /* ---------- init ---------- */
-$('diarizeToggle').checked = localStorage.getItem('vm_diarize') === '1';
+// 既定はON(明示的にOFFにした場合のみ '0' を記憶)
+$('diarizeToggle').checked = localStorage.getItem('vm_diarize') !== '0';
 $('diarizeToggle').onchange = () => {
   localStorage.setItem('vm_diarize', $('diarizeToggle').checked ? '1' : '0');
   refreshKeyBanner();
