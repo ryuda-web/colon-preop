@@ -228,7 +228,7 @@ details.guide ol { font-size: 12.5px; color: var(--muted); padding-left: 20px; m
     <p class="hint">
       高精度エンジン(OpenAI gpt-4o-transcribe)で日本語を文字起こしします。
       <b>専門用語・人名は設定の「カスタム辞書」に登録すると認識精度が大きく向上します。</b>
-      25MB超の長い録音は自動で分割して処理します。
+      約50分(25MB)を超える録音は無音位置で自動分割して処理します(1時間の録音で処理は数分)。
     </p>
   </div>
 
@@ -247,6 +247,7 @@ details.guide ol { font-size: 12.5px; color: var(--muted); padding-left: 20px; m
     <h2><span class="spinner"></span>処理中</h2>
     <div class="bar-wrap"><div class="bar" id="bar"></div></div>
     <div id="progLabel">準備中…</div>
+    <p class="hint">⏱ 処理中はこの画面を開いたままにしてください(画面スリープは自動で防止します)。万一中断しても、途中までの結果から再開できます。</p>
   </div>
 
   <!-- result -->
@@ -254,6 +255,7 @@ details.guide ol { font-size: 12.5px; color: var(--muted); padding-left: 20px; m
     <h2 id="resultTitle">文字起こし結果</h2>
     <textarea id="resultText" placeholder="ここに結果が表示されます"></textarea>
     <div class="result-actions">
+      <button class="chip-btn" id="resumeBtn" style="display:none;background:rgba(251,191,36,.2);color:var(--amber)">▶︎ 残りを再開</button>
       <button class="chip-btn primary" id="copyBtn">📋 コピー</button>
       <button class="chip-btn" id="shareBtn">↗︎ 共有</button>
       <button class="chip-btn" id="polishBtn">✨ 整形(句読点・段落)</button>
@@ -316,10 +318,11 @@ details.guide ol { font-size: 12.5px; color: var(--muted); padding-left: 20px; m
 
 <script>
 'use strict';
-const APP_VERSION = 'v1.0.0';
+const APP_VERSION = 'v1.1.0';
 const API_BASE = 'https://api.openai.com/v1';
 const DIRECT_UPLOAD_LIMIT = 24 * 1024 * 1024; // 25MB API上限に対し安全マージン
 const TARGET_RATE = 16000;
+const CHUNK_SEC = 600; // 分割時のチャンク長(10分 ≒ 19MB @16kHz/16bit)
 const $ = id => document.getElementById(id);
 
 /* ---------- settings ---------- */
@@ -412,54 +415,90 @@ async function apiError(res) {
   if (res.status === 401) msg = 'APIキーが無効です。設定を確認してください。';
   if (res.status === 429) msg = 'レート制限/残高不足です。OpenAIの利用状況を確認してください。';
   if (res.status === 413) msg = 'ファイルが大きすぎます(25MB上限)。';
-  return new Error(msg);
+  const err = new Error(msg);
+  err.status = res.status;
+  return err;
+}
+
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+async function transcribeWithRetry(blob, filename, prevTail, onStatus) {
+  // 一時的な通信エラー・サーバーエラーは自動で再試行(長時間ジョブを途中で落とさない)
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await transcribeBlob(blob, filename, prevTail);
+    } catch (err) {
+      const retryable = !err.status || err.status === 429 || err.status >= 500;
+      if (attempt >= 2 || !retryable) throw err;
+      onStatus && onStatus(`通信エラーのため再試行します… (${attempt + 1}/2)`);
+      await sleep(2500 * (attempt + 1));
+    }
+  }
 }
 
 /* ---------- audio decode & chunking (for >24MB) ---------- */
-async function decodeAndChunk(file, onStatus) {
-  onStatus('音声をデコード中…(長い録音は時間がかかります)');
+async function decodeAudio16k(file, onStatus) {
+  onStatus('音声を読み込み中…');
   const arrayBuf = await file.arrayBuffer();
-  const AC = window.AudioContext || window.webkitAudioContext;
-  const ac = new AC();
+  // 16kHzコンテキストで直接デコードするとメモリ使用量が約1/3になり、
+  // iPhoneでも1時間超の録音を安定して処理できる
+  let ctx, rate;
+  try {
+    ctx = new OfflineAudioContext(1, 1, TARGET_RATE);
+  } catch (_) {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    ctx = new AC();
+  }
+  onStatus('音声をデコード中…(1時間の録音で30秒〜1分程度)');
   let audioBuf;
   try {
-    audioBuf = await ac.decodeAudioData(arrayBuf);
+    audioBuf = await ctx.decodeAudioData(arrayBuf);
   } finally {
-    ac.close && ac.close();
+    if (ctx.close) try { ctx.close(); } catch (_) {}
   }
+  rate = audioBuf.sampleRate;
 
-  // 16kHzモノラルへダウンサンプル(失敗時は元レートのまま)
-  let rate = TARGET_RATE;
-  let rendered;
-  try {
-    const oac = new OfflineAudioContext(1, Math.ceil(audioBuf.duration * rate), rate);
-    const src = oac.createBufferSource();
-    src.buffer = audioBuf;
-    src.connect(oac.destination);
-    src.start();
-    onStatus('ダウンサンプル中…');
-    rendered = await oac.startRendering();
-  } catch (_) {
-    rate = audioBuf.sampleRate;
-    // モノラル化のみ
-    const mono = new Float32Array(audioBuf.length);
+  // モノラル化
+  let mono;
+  if (audioBuf.numberOfChannels === 1) {
+    mono = audioBuf.getChannelData(0);
+  } else {
+    mono = new Float32Array(audioBuf.length);
     for (let ch = 0; ch < audioBuf.numberOfChannels; ch++) {
       const d = audioBuf.getChannelData(ch);
       for (let i = 0; i < d.length; i++) mono[i] += d[i] / audioBuf.numberOfChannels;
     }
-    rendered = { getChannelData: () => mono, length: mono.length, duration: audioBuf.duration };
   }
+  return { data: mono, rate };
+}
 
-  // 25MB制限内に収まるチャンク秒数(16bitモノラル: rate*2 byte/s)
-  const maxSec = Math.floor((DIRECT_UPLOAD_LIMIT - 44) / (rate * 2));
-  const chunkSec = Math.min(600, maxSec);
-  const data = rendered.getChannelData(0);
-  const perChunk = chunkSec * rate;
-  const chunks = [];
-  for (let off = 0; off < data.length; off += perChunk) {
-    chunks.push(encodeWav(data.subarray(off, Math.min(off + perChunk, data.length)), rate));
+function planChunks(data, rate) {
+  // 25MB制限内に収まる長さで、無音(最も静かな)位置を選んで分割する
+  const maxSamples = Math.min(CHUNK_SEC * rate, Math.floor((DIRECT_UPLOAD_LIMIT - 44) / 2));
+  const blobs = [], starts = [];
+  let start = 0;
+  while (start < data.length) {
+    let end = Math.min(start + maxSamples, data.length);
+    if (end < data.length) end = findSilenceCut(data, rate, end);
+    blobs.push(encodeWav(data.subarray(start, end), rate));
+    starts.push(start / rate);
+    start = end;
   }
-  return chunks;
+  return { blobs, starts };
+}
+
+function findSilenceCut(data, rate, target) {
+  // 区切り目標位置の手前30秒から最も静かな100ms区間を探し、
+  // 語の途中で切れて前後チャンクの認識が乱れるのを防ぐ
+  const frame = Math.floor(rate * 0.1);
+  const searchStart = Math.max(0, target - rate * 30);
+  let best = target, bestE = Infinity;
+  for (let p = searchStart; p + frame <= target; p += frame) {
+    let e = 0;
+    for (let i = p; i < p + frame; i += 4) e += Math.abs(data[i]);
+    if (e < bestE) { bestE = e; best = p + frame / 2; }
+  }
+  return Math.floor(best);
 }
 
 function encodeWav(samples, rate) {
@@ -480,43 +519,86 @@ function encodeWav(samples, rate) {
 
 /* ---------- main flow ---------- */
 let busy = false;
+let pendingJob = null; // 分割ジョブの途中状態(失敗時に「残りを再開」で続行)
+
+/* 画面スリープ防止(長時間ジョブ中にiOSがタブを止めるのを防ぐ) */
+let wakeLock = null;
+async function acquireWakeLock() {
+  try { wakeLock = await navigator.wakeLock?.request('screen'); } catch (_) {}
+}
+function releaseWakeLock() {
+  try { wakeLock?.release(); } catch (_) {}
+  wakeLock = null;
+}
+document.addEventListener('visibilitychange', () => {
+  if (busy && document.visibilityState === 'visible') acquireWakeLock();
+});
 
 async function processAudio(blob, name) {
   if (!settings.apiKey) { openSettings(); toast('先にAPIキーを設定してください'); return; }
   if (busy) return;
   busy = true;
   $('resultCard').classList.remove('active');
+  $('resumeBtn').style.display = 'none';
+  await acquireWakeLock();
   try {
-    let text = '';
     if (blob.size <= DIRECT_UPLOAD_LIMIT) {
       showProgress('文字起こし中…(' + fmtMB(blob.size) + ')', 30);
-      text = await transcribeBlob(blob, name);
+      const text = await transcribeWithRetry(blob, name, '', s => showProgress(s, 30));
       showProgress('完了', 100);
+      finishJob(name, text);
     } else {
-      showProgress('大きいファイルのため分割処理します(' + fmtMB(blob.size) + ')', 2);
-      const chunks = await decodeAndChunk(blob, s => showProgress(s, 6));
-      const parts = [];
-      for (let i = 0; i < chunks.length; i++) {
-        showProgress(`文字起こし中… (${i + 1}/${chunks.length})`, 10 + 88 * (i / chunks.length));
-        const prevTail = parts.length ? parts[parts.length - 1].slice(-200) : '';
-        parts.push(await transcribeBlob(chunks[i], `chunk${i}.wav`, prevTail));
-      }
-      text = parts.join('\n');
-      showProgress('完了', 100);
+      showProgress('25MB超のため分割処理します(' + fmtMB(blob.size) + ')', 2);
+      const { data, rate } = await decodeAudio16k(blob, s => showProgress(s, 5));
+      const { blobs, starts } = planChunks(data, rate);
+      pendingJob = { name, blobs, starts, parts: [], nextIndex: 0 };
+      await runChunkJob(pendingJob);
     }
-    showResult(name, text);
-    saveHistory(name, text);
-    toast('文字起こしが完了しました');
   } catch (err) {
     console.error(err);
     alert('エラー: ' + err.message);
+    showPartialIfAny();
   } finally {
     busy = false;
+    releaseWakeLock();
     setTimeout(hideProgress, 600);
   }
 }
 
+async function runChunkJob(job) {
+  const n = job.blobs.length;
+  for (; job.nextIndex < n; job.nextIndex++) {
+    const i = job.nextIndex;
+    const pct = 8 + 90 * (i / n);
+    showProgress(`文字起こし中… ${i + 1}/${n}(録音の ${fmtTime(job.starts[i])} 付近から)`, pct);
+    const prevTail = job.parts.length ? job.parts[job.parts.length - 1].slice(-200) : '';
+    const t = await transcribeWithRetry(job.blobs[i], `chunk${i}.wav`, prevTail, s => showProgress(s, pct));
+    job.parts.push(t);
+  }
+  showProgress('完了', 100);
+  finishJob(job.name, job.parts.join('\n'));
+  pendingJob = null;
+}
+
+function finishJob(name, text) {
+  showResult(name, text);
+  saveHistory(name, text);
+  toast('文字起こしが完了しました');
+}
+
+function showPartialIfAny() {
+  if (pendingJob && pendingJob.parts.length) {
+    showResult(pendingJob.name + '(途中まで)', pendingJob.parts.join('\n'));
+    $('resumeBtn').style.display = '';
+    toast(`${pendingJob.nextIndex}/${pendingJob.blobs.length} まで完了。「残りを再開」で続行できます`);
+  }
+}
+
 function fmtMB(b) { return (b / 1024 / 1024).toFixed(1) + 'MB'; }
+function fmtTime(sec) {
+  const m = Math.floor(sec / 60), s = Math.floor(sec % 60);
+  return m + ':' + String(s).padStart(2, '0');
+}
 
 function showResult(title, text) {
   $('resultTitle').textContent = title || '文字起こし結果';
@@ -642,6 +724,25 @@ async function aiRewrite(mode, btn) {
 $('polishBtn').onclick = e => aiRewrite('polish', e.target);
 $('fillerBtn').onclick = e => aiRewrite('filler', e.target);
 $('summaryBtn').onclick = e => aiRewrite('summary', e.target);
+
+/* ---------- resume (分割ジョブの途中再開) ---------- */
+$('resumeBtn').onclick = async () => {
+  if (!pendingJob || busy) return;
+  busy = true;
+  $('resumeBtn').style.display = 'none';
+  await acquireWakeLock();
+  try {
+    await runChunkJob(pendingJob);
+  } catch (err) {
+    console.error(err);
+    alert('エラー: ' + err.message);
+    showPartialIfAny();
+  } finally {
+    busy = false;
+    releaseWakeLock();
+    setTimeout(hideProgress, 600);
+  }
+};
 
 /* ---------- history ---------- */
 function getHistory() {
