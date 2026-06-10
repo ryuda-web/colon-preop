@@ -1,0 +1,1034 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<meta name="theme-color" content="#134e4a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="休薬チェック">
+<meta name="mobile-web-app-capable" content="yes">
+<title>術前おくすりチェッカー</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
+<style>
+:root{
+  --ok:#16a34a; --warn:#f59e0b; --ng:#dc2626;
+  --ok-bg:#dcfce7; --warn-bg:#fef3c7; --ng-bg:#fee2e2;
+  --accent:#0f766e; --accent-bg:#ccfbf1;
+  --bg:#f8fafc; --card:#fff; --text:#0f172a; --muted:#64748b; --border:#e2e8f0;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Yu Gothic",sans-serif;
+  font-size:15px;line-height:1.5;overscroll-behavior:none}
+header{background:#134e4a;color:#fff;padding:calc(14px + env(safe-area-inset-top)) 16px 14px;
+  position:sticky;top:0;z-index:10;box-shadow:0 2px 6px rgba(0,0,0,.12)}
+header h1{margin:0;font-size:17px;font-weight:600;letter-spacing:.02em}
+header .sub{font-size:12px;opacity:.75;margin-top:2px}
+nav.tabs{display:flex;background:#115e59;position:sticky;top:calc(54px + env(safe-area-inset-top));z-index:10}
+nav.tabs button{flex:1;background:none;border:0;color:#99f6e4;padding:12px 8px;
+  font-size:14px;font-weight:600;cursor:pointer;border-bottom:3px solid transparent}
+nav.tabs button.active{color:#fff;border-bottom-color:#2dd4bf;background:rgba(45,212,191,.08)}
+main{padding:12px;padding-bottom:80px;max-width:720px;margin:0 auto}
+.tab{display:none}
+.tab.active{display:block}
+h2{font-size:16px;margin:14px 4px 8px;color:var(--text)}
+h3{font-size:14px;margin:10px 4px 6px;color:var(--muted);font-weight:600}
+.card{background:var(--card);border-radius:12px;padding:12px;margin-bottom:10px;
+  border:1px solid var(--border);box-shadow:0 1px 2px rgba(0,0,0,.03)}
+
+.draft-banner{background:#fff7ed;border:1px solid #fdba74;color:#9a3412;border-radius:10px;
+  padding:10px 12px;font-size:12px;margin-bottom:10px;line-height:1.55}
+.draft-banner strong{display:block;font-size:13px}
+
+.field{margin-bottom:10px}
+.field label{display:block;font-size:13px;font-weight:600;color:var(--muted);margin-bottom:4px}
+.field input[type=date]{width:100%;padding:10px;border:1px solid var(--border);border-radius:10px;
+  font-size:16px;background:#fff;color:var(--text);font-family:inherit}
+.seg{display:flex;gap:6px}
+.seg button{flex:1;padding:10px 6px;border:1px solid var(--border);border-radius:10px;background:#fff;
+  font-size:13px;font-weight:600;color:var(--muted);cursor:pointer}
+.seg button.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.checks{display:flex;flex-direction:column;gap:8px;margin-top:4px}
+.checkrow{display:flex;align-items:center;gap:8px;background:#fff;border:1px solid var(--border);
+  border-radius:10px;padding:10px;cursor:pointer;font-size:13px}
+.checkrow input{width:18px;height:18px;accent-color:var(--accent)}
+.checkrow .hint{color:var(--muted);font-size:11px;display:block}
+
+.searchbox{position:relative}
+.searchbox input{width:100%;padding:12px;border:1px solid var(--border);border-radius:10px;
+  font-size:16px;background:#fff;color:var(--text);font-family:inherit}
+.suggest{position:absolute;left:0;right:0;top:calc(100% + 4px);background:#fff;border:1px solid var(--border);
+  border-radius:10px;box-shadow:0 8px 24px rgba(15,23,42,.14);z-index:50;max-height:300px;overflow-y:auto;display:none}
+.suggest.show{display:block}
+.suggest button{display:block;width:100%;text-align:left;background:none;border:0;padding:10px 12px;
+  border-bottom:1px solid var(--border);cursor:pointer;font-size:14px;color:var(--text)}
+.suggest button:last-child{border-bottom:0}
+.suggest button:active{background:var(--accent-bg)}
+.suggest .gname{font-weight:700}
+.suggest .meta{font-size:11px;color:var(--muted);display:block}
+
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;min-height:24px}
+.chip{display:inline-flex;align-items:center;gap:6px;background:var(--accent);color:#fff;
+  border-radius:8px;padding:6px 10px;font-size:13px;font-weight:700}
+.chip .x{background:rgba(255,255,255,.25);border-radius:50%;width:18px;height:18px;
+  display:flex;align-items:center;justify-content:center;font-size:12px;cursor:pointer}
+.chips .empty{color:#cbd5e1;font-size:12px;align-self:center}
+
+.alert{border-radius:10px;padding:10px 12px;margin-bottom:6px;border-left:4px solid;font-size:13px}
+.alert.ng{background:var(--ng-bg);border-color:var(--ng);color:#7f1d1d}
+.alert.warn{background:var(--warn-bg);border-color:var(--warn);color:#78350f}
+.alert strong{display:block;margin-bottom:2px}
+
+.result-card{background:#fff;border:1px solid var(--border);border-radius:12px;padding:12px;margin-bottom:8px}
+.result-card .head{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.result-card .dname{font-weight:700;font-size:15px}
+.result-card .brands{font-size:12px;color:var(--muted)}
+.result-card .stopdate{margin-top:6px;font-size:14px}
+.result-card .stopdate .date{font-weight:700;color:var(--ng);font-size:17px}
+.result-card .lastdose{font-size:12px;color:var(--muted);margin-top:2px}
+.result-card .notes{margin-top:6px;font-size:12px;color:#334155;line-height:1.6}
+.result-card .notes li{margin-bottom:2px}
+.result-card .notes ul{margin:0;padding-left:16px}
+.result-card.consult{border-left:4px solid var(--warn)}
+
+.badge{display:inline-block;padding:2px 8px;border-radius:6px;font-size:10px;font-weight:700;margin-right:4px;vertical-align:middle}
+.badge.grp{background:#e2e8f0;color:#475569}
+.badge.src{background:var(--accent-bg);color:var(--accent)}
+.badge.draft{background:#fff7ed;color:#c2410c;border:1px solid #fdba74}
+.badge.pending{background:#ede9fe;color:#6d28d9}
+.badge.consult-b{background:var(--warn);color:#fff}
+.badge.zero{background:var(--ok-bg);color:var(--ok)}
+
+.schedule{width:100%;border-collapse:collapse;background:#fff;border-radius:8px;overflow:hidden;
+  font-size:13px;margin-top:8px}
+.schedule th,.schedule td{border:1px solid var(--border);padding:8px;text-align:left}
+.schedule th{background:#f1f5f9;color:var(--muted);font-size:12px}
+.schedule td.dt{white-space:nowrap;font-weight:700;width:1%}
+.schedule tr.surg td{background:var(--accent-bg);font-weight:700}
+
+.btn-primary{width:100%;padding:12px;background:var(--accent);color:#fff;border:0;border-radius:10px;
+  font-weight:700;font-size:14px;cursor:pointer;margin-top:8px}
+.btn-primary:active{opacity:.85}
+.clear-btn{margin-top:10px;background:#fee2e2;color:var(--ng);border:1px solid #fecaca;
+  padding:10px;border-radius:10px;width:100%;font-weight:600;cursor:pointer}
+
+.tip{background:#fff;border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px}
+.tip h4{margin:0 0 6px;font-size:14px;color:var(--text)}
+.tip h4::before{content:"▸ ";color:#2dd4bf}
+.tip ul{margin:4px 0 0;padding-left:18px;font-size:13px;color:#334155;line-height:1.6}
+.tip li{margin-bottom:3px}
+.tip p{font-size:13px;color:#334155;margin:4px 0}
+.tip .highlight{background:linear-gradient(transparent 60%,#ccfbf1 60%);padding:0 2px}
+
+.druglist-grp{margin-bottom:4px}
+.drugrow{background:#fff;border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:6px}
+.drugrow .dname{font-weight:700;font-size:14px}
+.drugrow .brands{font-size:12px;color:var(--muted)}
+.drugrow .rule{font-size:12px;color:#334155;margin-top:4px}
+
+footer.app-footer{text-align:center;padding:20px 12px calc(20px + env(safe-area-inset-bottom));
+  color:#94a3b8;font-size:11px;line-height:1.5}
+footer.app-footer .ver{font-weight:600;color:#64748b}
+
+.btn-photo{width:100%;padding:13px;background:#fff;border:2px solid var(--accent);color:var(--accent);
+  border-radius:10px;font-weight:700;font-size:14px;cursor:pointer;margin-bottom:6px}
+.btn-photo:active{background:var(--accent-bg)}
+.ocr-privacy{font-size:11px;color:var(--muted);margin:0 0 12px;line-height:1.5}
+.btn-sub{width:100%;padding:11px;background:#f1f5f9;border:1px solid var(--border);color:var(--text);
+  border-radius:10px;font-weight:600;font-size:13px;cursor:pointer;margin-top:8px}
+
+.ocr-modal{position:fixed;inset:0;background:rgba(15,23,42,.6);display:none;
+  align-items:center;justify-content:center;padding:16px;z-index:100}
+.ocr-modal.show{display:flex}
+.ocr-card{background:#fff;border-radius:14px;padding:16px;max-width:440px;width:100%;
+  max-height:86vh;overflow-y:auto}
+.ocr-thumb{display:block;max-width:100%;max-height:140px;margin:0 auto 10px;border-radius:8px;
+  border:1px solid var(--border)}
+.progress{height:8px;background:#e2e8f0;border-radius:4px;overflow:hidden;margin:8px 0}
+.progress-bar{height:100%;width:0%;background:var(--accent);transition:width .2s}
+.ocr-status{font-size:12px;color:var(--muted);margin:4px 0}
+.cand{display:flex;align-items:flex-start;gap:10px;border:1px solid var(--border);border-radius:10px;
+  padding:10px;margin-bottom:6px;cursor:pointer}
+.cand input{width:20px;height:20px;accent-color:var(--accent);margin-top:2px;flex-shrink:0}
+.cand .cname{font-weight:700;font-size:14px}
+.cand .cmeta{font-size:11px;color:var(--muted)}
+.cand .cline{font-size:11px;color:#334155;background:#f8fafc;border-radius:6px;padding:2px 6px;
+  margin-top:3px;display:inline-block}
+.cand.already{opacity:.55}
+.badge.exact{background:var(--ok-bg);color:var(--ok)}
+.badge.fuzzy{background:var(--warn-bg);color:#92400e}
+.ocr-raw{margin:8px 0;font-size:12px;color:var(--muted)}
+.ocr-raw pre{white-space:pre-wrap;background:#f8fafc;border:1px solid var(--border);border-radius:8px;
+  padding:8px;font-size:11px;max-height:160px;overflow-y:auto}
+
+.toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);
+  background:#0f172a;color:#fff;padding:10px 16px;border-radius:24px;font-size:13px;
+  opacity:0;transition:opacity .3s;pointer-events:none;z-index:200;max-width:calc(100% - 40px)}
+.toast.show{opacity:1}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>術前おくすりチェッカー</h1>
+  <div class="sub">周術期 休薬日 逆算ツール（非心臓手術用）</div>
+</header>
+
+<nav class="tabs">
+  <button class="tab-btn active" data-tab="check">💊 チェック</button>
+  <button class="tab-btn" data-tab="list">📋 薬剤一覧</button>
+  <button class="tab-btn" data-tab="info">📖 注意・出典</button>
+</nav>
+
+<main>
+  <section class="tab active" id="check">
+    <div class="draft-banner">
+      <strong>⚠ 監修前ドラフト版</strong>
+      休薬日数はガイドラインをもとにした下書きです。確定前に必ず原典・施設プロトコルと照合してください。
+      本ツールは見落とし防止のダブルチェック支援であり、休薬指示そのものは主治医・麻酔科・処方医の判断を優先します。
+    </div>
+
+    <div class="card">
+      <h2 style="margin-top:0">① 手術の条件</h2>
+      <div class="field">
+        <label for="surg-date">手術予定日</label>
+        <input type="date" id="surg-date">
+      </div>
+      <div class="field">
+        <label>手術の出血リスク（→ 注意・出典タブに目安）</label>
+        <div class="seg" id="risk-seg">
+          <button data-risk="high" class="on">高リスク<br><small>腹腔内手術など</small></button>
+          <button data-risk="low">低リスク<br><small>体表小手術など</small></button>
+        </div>
+      </div>
+      <div class="checks">
+        <label class="checkrow"><input type="checkbox" id="opt-neuraxial">
+          <span>硬膜外・脊髄くも膜下麻酔の予定あり<span class="hint">抗血栓薬の基準が別途厳格になります</span></span></label>
+        <label class="checkrow"><input type="checkbox" id="opt-renal">
+          <span>腎機能低下あり（CCr&lt;50 目安）<span class="hint">ダビガトラン等で休薬延長</span></span></label>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2 style="margin-top:0">② 内服中の薬を追加</h2>
+      <button class="btn-photo" id="ocr-btn">📷 お薬手帳の写真から読み取る</button>
+      <input type="file" id="ocr-file" accept="image/*" hidden>
+      <p class="ocr-privacy">写真は端末の中だけで処理され、<strong>外部には一切送信されません</strong>。お薬手帳のシール（薬剤情報のページ）を真上から、明るい場所で撮影してください。</p>
+      <div class="searchbox">
+        <input type="text" id="drug-search" placeholder="薬の名前で検索（例: エリキュース / ばいあすぴりん）"
+               autocomplete="off" autocorrect="off">
+        <div class="suggest" id="suggest"></div>
+      </div>
+      <div class="chips" id="chips"></div>
+      <p style="font-size:12px;color:var(--muted);margin:8px 0 0">
+        商品名・一般名・ひらがなでも検索できます。この辞書は周術期に関係する薬のみ収載しています（降圧薬など継続でよい薬は出てきません）。入力内容は端末に自動保存されます。
+      </p>
+    </div>
+
+    <div id="global-alerts"></div>
+
+    <div id="results"></div>
+
+    <div class="card" id="schedule-card" style="display:none">
+      <h2 style="margin-top:0">休薬カレンダー</h2>
+      <div id="schedule"></div>
+      <button class="btn-primary" id="copy-btn">📋 結果をテキストでコピー（カルテ貼付用）</button>
+    </div>
+
+    <button class="clear-btn" id="clear-btn">入力をリセット</button>
+  </section>
+
+  <section class="tab" id="list">
+    <div class="card">
+      <h2 style="margin-top:0">収載薬一覧</h2>
+      <p style="font-size:12px;color:var(--muted);margin:0 0 10px">
+        休薬日数は「手術日を含まず○日前から内服しない」の意味です。<span class="badge draft">監修前</span>は数値未確定。
+      </p>
+      <div id="druglist"></div>
+    </div>
+  </section>
+
+  <section class="tab" id="info">
+    <div class="card">
+      <h2 style="margin-top:0">使い方と前提</h2>
+      <div class="tip">
+        <h4>日数の数え方</h4>
+        <p>「<span class="highlight">3日前から休薬</span>」は<strong>手術日を含まず</strong>に数えます。最終内服はその前日です。本ツールは休薬開始日と最終内服日の両方を表示して、数え間違いを防ぎます。</p>
+      </div>
+      <div class="tip">
+        <h4>出血リスクの目安（JCS2022の考え方に準拠）</h4>
+        <ul>
+          <li><strong>高リスク</strong>: 開腹・腹腔鏡下の腹腔内手術、胸腔内手術、大血管手術、大きな整形外科手術など</li>
+          <li><strong>低リスク</strong>: 体表の小手術、白内障手術など</li>
+          <li>迷う場合は高リスク側で計算し、麻酔科・術者と確認</li>
+        </ul>
+      </div>
+      <div class="tip">
+        <h4>このツールが「計算しない」と決めていること</h4>
+        <ul>
+          <li><strong>ヘパリンブリッジの要否</strong>（機械弁・弁膜症性心房細動・VTE高リスクなど）→ 循環器・血液内科と協議</li>
+          <li><strong>冠動脈ステント留置後の抗血小板薬の休薬可否</strong> → 休薬自体が危険な場合があり、循環器と協議</li>
+          <li><strong>硬膜外・脊麻併用時の具体的日数</strong> → 区域麻酔ガイドライン(2016)の別基準。必ず麻酔科と確認</li>
+          <li>これらは該当時に「要相談」フラグを表示するだけにしています</li>
+        </ul>
+      </div>
+      <div class="tip">
+        <h4>継続が原則の薬（休薬しない）</h4>
+        <ul>
+          <li>β遮断薬・スタチン・Ca拮抗薬・吸入薬・抗てんかん薬などは周術期も継続が原則（JCS2022）</li>
+          <li>ACE阻害薬/ARBは手術当日朝の休薬を考慮する施設あり → 施設基準を確認</li>
+          <li>長期ステロイド内服はステロイドカバーを検討</li>
+        </ul>
+      </div>
+      <div class="tip">
+        <h4>聴取漏れに注意</h4>
+        <ul>
+          <li>EPA・イチョウ葉・にんにく・魚油などの<span class="highlight">サプリ・健康食品</span>は患者が「薬」と思っておらず申告されにくい</li>
+          <li>低用量ピル(OC/LEP)・ホルモン補充療法も同様。<strong>4週間前</strong>からの休薬が必要なため、術前外来での聴取が遅いと間に合わない</li>
+        </ul>
+      </div>
+      <div class="tip">
+        <h4>適用範囲</h4>
+        <ul>
+          <li>本ツールは<strong>非心臓手術の術前休薬</strong>用です</li>
+          <li>消化器内視鏡(生検・ポリペクトミー等)の休薬は別基準(JGES 2012/追補2017) → 本ツールの日数を流用しないこと</li>
+          <li>GLP-1受容体作動薬は関連学会の合同ステートメント改訂が見込まれており(2026)、<span class="badge pending">改訂待ち</span>を付けています</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2 style="margin-top:0">出典（階層構成）</h2>
+      <div class="tip">
+        <ul>
+          <li><strong>JCS2022</strong>: 日本循環器学会「非心臓手術における合併心疾患の評価と管理に関するガイドライン(2022年改訂版)」— 抗血栓薬の基幹</li>
+          <li><strong>JDS</strong>: 日本糖尿病学会「SGLT2阻害薬の適正使用に関するRecommendation」(2022改訂) — 術前3日前休薬</li>
+          <li><strong>JSA提言</strong>: 日本麻酔科学会のGLP-1受容体作動薬に関する提言(ASAガイダンス準拠)</li>
+          <li><strong>区域麻酔GL2016</strong>: 「抗血栓療法中の区域麻酔・神経ブロックに関するガイドライン」— 硬膜外・脊麻フラグの根拠</li>
+          <li><strong>添付文書</strong>: 各薬剤の電子添文(PMDA) — フォールバック</li>
+          <li>内視鏡は対象外: JGES「抗血栓薬服用者に対する消化器内視鏡診療ガイドライン」(2012/DOAC追補2017)</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <footer class="app-footer">
+    <div class="ver">術前おくすりチェッカー <span id="version-label"></span></div>
+    <div>君津 外科レジデント教育用 / Internal use only</div>
+    <div>教育用ダブルチェック支援ツール。実際の休薬指示は施設プロトコル・主治医/麻酔科/処方医の判断を優先してください。</div>
+    <div id="install-hint" style="margin-top:6px"></div>
+  </footer>
+</main>
+
+<div class="ocr-modal" id="ocr-modal">
+  <div class="ocr-card">
+    <div id="ocr-progress-view">
+      <h3 style="margin:0 0 10px">📷 読み取り中…</h3>
+      <img id="ocr-thumb" alt="" class="ocr-thumb">
+      <div class="progress"><div class="progress-bar" id="ocr-bar"></div></div>
+      <p class="ocr-status" id="ocr-status">準備中…</p>
+      <p class="ocr-status" style="opacity:.7">初回は読み取りエンジンの読み込みに10秒ほどかかることがあります</p>
+    </div>
+    <div id="ocr-result-view" style="display:none">
+      <h3 style="margin:0 0 4px">候補が見つかりました</h3>
+      <p class="ocr-status" style="margin-top:0">追加する薬に✓を入れて確定してください。<strong>誤認識の可能性があるため必ず原本と照合を。</strong></p>
+      <div id="ocr-candidates"></div>
+      <details class="ocr-raw"><summary>認識された全テキストを表示（拾えなかった薬がないか確認）</summary>
+        <pre id="ocr-raw-text"></pre>
+      </details>
+      <button class="btn-primary" id="ocr-add-btn">✓ チェックした薬を追加</button>
+      <button class="btn-sub" id="ocr-retry-btn">📷 別のページを読み取る</button>
+    </div>
+    <button class="btn-sub" id="ocr-cancel">閉じる</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const APP_VERSION = 'v0.2.0-draft';
+const APP_RELEASE = '2026-06-10';
+const STORAGE_KEY = 'preop-med-checker-v1';
+
+/* ============================================================
+ * 薬剤辞書
+ * rule: {low, high} … 出血リスク別の「手術日を含まない」休薬日数。0=手術当日のみ休薬
+ * renalRule        … 腎機能低下(CCr<50目安)チェック時に置き換える日数
+ * 全エントリ draft:true（監修者が原典照合後に false へ）
+ * ============================================================ */
+const SRC = {
+  JCS:'JCS2022', JDS:'JDS', JSA:'JSA提言', TEN:'添付文書', SHISETSU:'施設基準確認'
+};
+
+const DRUGS = [
+// ---- 抗凝固薬 ----
+{id:'warfarin', generic:'ワルファリン', brands:['ワーファリン'], grp:'抗凝固薬',
+ rule:{low:5, high:5}, rangeNote:'3〜5日前（INR正常化を確認してから手術）',
+ restart:'術後、止血確認後できるだけ早期に再開しINRフォロー',
+ source:SRC.JCS, consult:true,
+ consultNote:'機械弁・弁膜症性心房細動・VTE高リスク等ではヘパリンブリッジを要協議',
+ draft:true},
+{id:'dabigatran', generic:'ダビガトラン', brands:['プラザキサ'], grp:'抗凝固薬',
+ rule:{low:1, high:2}, renalRule:{low:2, high:4},
+ rangeNote:'腎機能正常: 低リスク24h/高リスク48h。CCr50–80では36h/72hも考慮',
+ restart:'止血確認後、低リスク術後24h・高リスク術後48–72hを目安に再開',
+ source:SRC.JCS, draft:true},
+{id:'rivaroxaban', generic:'リバーロキサバン', brands:['イグザレルト'], grp:'抗凝固薬',
+ rule:{low:1, high:2}, rangeNote:'低リスク≥24h前/高リスク≥48h前。腎機能低下では延長を考慮',
+ restart:'止血確認後、低リスク術後24h・高リスク術後48–72hを目安に再開',
+ source:SRC.JCS, draft:true},
+{id:'apixaban', generic:'アピキサバン', brands:['エリキュース'], grp:'抗凝固薬',
+ rule:{low:1, high:2}, rangeNote:'低リスク≥24h前/高リスク≥48h前。腎機能低下では延長を考慮',
+ restart:'止血確認後、低リスク術後24h・高リスク術後48–72hを目安に再開',
+ source:SRC.JCS, draft:true},
+{id:'edoxaban', generic:'エドキサバン', brands:['リクシアナ'], grp:'抗凝固薬',
+ rule:{low:1, high:2}, rangeNote:'低リスク≥24h前/高リスク≥48h前。腎機能低下では延長を考慮',
+ restart:'止血確認後、低リスク術後24h・高リスク術後48–72hを目安に再開',
+ source:SRC.JCS, draft:true},
+
+// ---- 抗血小板薬 ----
+{id:'aspirin', generic:'アスピリン', brands:['バイアスピリン','バファリン配合錠A81','タケルダ配合錠'], grp:'抗血小板薬',
+ rule:{low:7, high:7}, rangeNote:'休薬する場合は7日前が目安',
+ extra:'血栓リスクが高い症例（冠動脈ステント等）では周術期継続を考慮(JCS2022)。休薬可否そのものを先に判断する',
+ restart:'止血確認後できるだけ早期に再開',
+ source:SRC.JCS, consult:true, consultNote:'冠動脈ステント留置後は休薬可否を循環器と協議',
+ draft:true},
+{id:'clopidogrel', generic:'クロピドグレル', brands:['プラビックス','コンプラビン配合錠（アスピリン含有）'], grp:'抗血小板薬',
+ rule:{low:7, high:7}, rangeNote:'5〜7日前が目安（添付文書は14日以上）',
+ restart:'止血確認後、循環器と協議のうえ再開',
+ source:SRC.JCS, consult:true, consultNote:'冠動脈ステント留置後は休薬可否を循環器と協議',
+ draft:true},
+{id:'prasugrel', generic:'プラスグレル', brands:['エフィエント'], grp:'抗血小板薬',
+ rule:{low:14, high:14}, rangeNote:'添付文書は14日以上前（7〜14日とする報告もあり）',
+ restart:'止血確認後、循環器と協議のうえ再開',
+ source:SRC.TEN, consult:true, consultNote:'冠動脈ステント留置後は休薬可否を循環器と協議',
+ draft:true},
+{id:'ticagrelor', generic:'チカグレロル', brands:['ブリリンタ'], grp:'抗血小板薬',
+ rule:{low:5, high:5}, rangeNote:'添付文書は5日以上前（3〜5日とする報告もあり）',
+ restart:'止血確認後、循環器と協議のうえ再開',
+ source:SRC.TEN, consult:true, consultNote:'冠動脈ステント留置後は休薬可否を循環器と協議',
+ draft:true},
+{id:'cilostazol', generic:'シロスタゾール', brands:['プレタール'], grp:'抗血小板薬',
+ rule:{low:3, high:3}, rangeNote:'2〜4日前とする施設が多い。施設基準を確認',
+ restart:'止血確認後に再開', source:SRC.SHISETSU, draft:true},
+{id:'sarpogrelate', generic:'サルポグレラート', brands:['アンプラーグ'], grp:'抗血小板薬',
+ rule:{low:1, high:1}, rangeNote:'1〜2日前とする施設が多い。施設基準を確認',
+ restart:'止血確認後に再開', source:SRC.SHISETSU, draft:true},
+{id:'beraprost', generic:'ベラプロスト', brands:['ドルナー','プロサイリン','ケアロードLA','ベラサスLA'], grp:'抗血小板薬',
+ rule:{low:1, high:1}, rangeNote:'添付文書に明確な日数記載なし。1日前目安・施設基準を確認',
+ restart:'止血確認後に再開', source:SRC.SHISETSU, draft:true},
+{id:'epa', generic:'EPA製剤（イコサペント酸エチル等）', brands:['エパデール','ロトリガ'], grp:'抗血小板薬',
+ rule:{low:7, high:7}, rangeNote:'7〜10日前とする施設が多い（エビデンスは限定的）。施設基準を確認',
+ extra:'市販の魚油・EPA/DHAサプリも同様に聴取する',
+ restart:'止血確認後に再開', source:SRC.SHISETSU, draft:true},
+
+// ---- 糖尿病薬: SGLT2阻害薬（術前3日前から休薬 / JDS Recommendation） ----
+...[
+ ['ipragliflozin','イプラグリフロジン',['スーグラ','スージャヌ配合錠']],
+ ['dapagliflozin','ダパグリフロジン',['フォシーガ']],
+ ['luseogliflozin','ルセオグリフロジン',['ルセフィ']],
+ ['tofogliflozin','トホグリフロジン',['デベルザ','アプルウェイ']],
+ ['canagliflozin','カナグリフロジン',['カナグル','カナリア配合錠']],
+ ['empagliflozin','エンパグリフロジン',['ジャディアンス','トラディアンス配合錠']],
+].map(([id, generic, brands])=>({
+ id, generic, brands, grp:'糖尿病薬（SGLT2阻害薬）',
+ rule:{low:3, high:3}, rangeNote:'手術の3日前から休薬（正常血糖ケトアシドーシス予防）',
+ restart:'食事が十分摂取できるようになってから再開',
+ source:SRC.JDS, draft:true})),
+
+{id:'metformin', generic:'メトホルミン（ビグアナイド）',
+ brands:['メトグルコ','グリコラン','エクメット配合錠','イニシンク配合錠','メタクト配合錠'], grp:'糖尿病薬',
+ rule:{low:2, high:2}, rangeNote:'前日〜2日前から休薬とする施設が多い（乳酸アシドーシス予防）。施設基準を確認',
+ extra:'ヨード造影剤を使う検査では検査当日から48時間後まで休薬し、腎機能を確認してから再開',
+ restart:'食事再開・腎機能確認後に再開', source:SRC.SHISETSU, draft:true},
+{id:'glp1-weekly', generic:'GLP-1受容体作動薬（週1回製剤）',
+ brands:['オゼンピック','トルリシティ','マンジャロ（GIP/GLP-1）'], grp:'糖尿病薬',
+ rule:{low:7, high:7}, rangeNote:'最終投与から1週間あける（胃内容排出遅延 → 誤嚥リスク）',
+ restart:'経口摂取再開後に再開', source:SRC.JSA, pending:true, draft:true},
+{id:'glp1-daily', generic:'GLP-1受容体作動薬（連日製剤）',
+ brands:['リベルサス','ビクトーザ','リキスミア','バイエッタ'], grp:'糖尿病薬',
+ rule:{low:0, high:0}, rangeNote:'手術当日は投与しない（前日までは可）',
+ restart:'経口摂取再開後に再開', source:SRC.JSA, pending:true, draft:true},
+
+// ---- 女性ホルモン ----
+{id:'oc-lep', generic:'エストロゲン含有 OC/LEP（低用量ピル）',
+ brands:['トリキュラー','アンジュ','ラベルフィーユ','マーベロン','ファボワール','ヤーズ','ヤーズフレックス','ルナベル','フリウェル','ジェミーナ','ドロエチ'],
+ grp:'女性ホルモン',
+ rule:{low:28, high:28}, rangeNote:'手術前4週以内は投与禁忌（VTEリスク）',
+ restart:'術後2週以降かつ十分に歩行可能になってから再開',
+ source:SRC.TEN, draft:true},
+{id:'hrt', generic:'経口エストロゲン製剤（HRT）', brands:['プレマリン','ジュリナ','ウェールナラ配合錠'],
+ grp:'女性ホルモン',
+ rule:{low:28, high:28}, rangeNote:'4週間前を目安（OC/LEPに準じる運用が多いが明確な基準なし）',
+ restart:'術後の離床状況をみて処方医と相談',
+ source:SRC.SHISETSU, consult:true, consultNote:'休薬の要否自体を処方医と相談', draft:true},
+];
+
+const GRP_ORDER = ['抗凝固薬','抗血小板薬','糖尿病薬（SGLT2阻害薬）','糖尿病薬','女性ホルモン'];
+const WEEKDAYS = ['日','月','火','水','木','金','土'];
+
+let state = { surgDate:'', risk:'high', neuraxial:false, renal:false, selected:[] };
+
+const $ = id => document.getElementById(id);
+
+/* ---------- 検索の正規化: NFKC + 小文字 + ひらがな→カタカナ ---------- */
+function norm(s){
+  return s.normalize('NFKC').toLowerCase()
+    .replace(/[ぁ-ゖ]/g, ch => String.fromCharCode(ch.charCodeAt(0) + 0x60))
+    .replace(/[\s・，,]/g,'');
+}
+const SEARCH_INDEX = DRUGS.map(d => ({d, keys:[d.generic, ...d.brands].map(norm)}));
+
+function searchDrugs(q){
+  const nq = norm(q);
+  if(!nq) return [];
+  return SEARCH_INDEX
+    .filter(({d, keys}) => !state.selected.includes(d.id) && keys.some(k => k.includes(nq)))
+    .map(({d}) => d).slice(0, 12);
+}
+
+/* ---------- 状態 ---------- */
+function saveState(){
+  try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }catch(e){}
+}
+function loadState(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(!raw) return;
+    const p = JSON.parse(raw);
+    if(p && typeof p === 'object'){
+      state = {...state, ...p, selected:(p.selected||[]).filter(id => DRUGS.some(d => d.id === id))};
+    }
+  }catch(e){}
+}
+function showToast(msg){
+  const t = $('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(showToast._t);
+  showToast._t = setTimeout(()=>t.classList.remove('show'), 1800);
+}
+
+/* ---------- 日付計算 ----------
+ * stopDays=N: 手術日を含まずN日前から内服しない（最終内服はその前日）
+ * stopDays=0: 手術当日のみ内服しない
+ */
+function parseDate(str){
+  const [y,m,d] = str.split('-').map(Number);
+  return new Date(y, m-1, d);
+}
+function addDays(date, n){
+  const d = new Date(date);
+  d.setDate(d.getDate() + n);
+  return d;
+}
+function fmt(d){
+  return `${d.getMonth()+1}/${d.getDate()}(${WEEKDAYS[d.getDay()]})`;
+}
+function ymd(d){
+  const p = n => String(n).padStart(2,'0');
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;
+}
+function calcDrug(drug){
+  const days = (state.renal && drug.renalRule) ? drug.renalRule[state.risk] : drug.rule[state.risk];
+  const surg = parseDate(state.surgDate);
+  const stopStart = addDays(surg, -days);
+  const lastDose = addDays(stopStart, -1);
+  return {drug, days, stopStart, lastDose};
+}
+
+/* ---------- 描画 ---------- */
+function render(){
+  renderChips();
+  renderResults();
+  saveState();
+}
+
+function renderChips(){
+  const c = $('chips');
+  c.innerHTML = '';
+  if(state.selected.length === 0){
+    c.innerHTML = '<span class="empty">追加された薬はまだありません</span>';
+    return;
+  }
+  state.selected.forEach(id=>{
+    const d = DRUGS.find(x => x.id === id);
+    const span = document.createElement('span');
+    span.className = 'chip';
+    span.innerHTML = `${d.brands[0] || d.generic}<span class="x">×</span>`;
+    span.querySelector('.x').addEventListener('click',()=>{
+      state.selected = state.selected.filter(x => x !== id);
+      render();
+    });
+    c.appendChild(span);
+  });
+}
+
+function renderResults(){
+  const ga = $('global-alerts');
+  const res = $('results');
+  const schedCard = $('schedule-card');
+  ga.innerHTML = ''; res.innerHTML = '';
+
+  if(state.selected.length === 0 || !state.surgDate){
+    schedCard.style.display = 'none';
+    if(state.selected.length > 0 && !state.surgDate){
+      ga.innerHTML = '<div class="alert warn"><strong>⚠ 手術予定日を入力してください</strong>休薬開始日を日付で計算します</div>';
+    }
+    return;
+  }
+
+  if(state.neuraxial && state.selected.some(id=>{
+      const g = DRUGS.find(d => d.id === id).grp;
+      return g === '抗凝固薬' || g === '抗血小板薬';
+  })){
+    ga.innerHTML += `<div class="alert ng"><strong>❌ 区域麻酔 × 抗血栓薬</strong>
+      硬膜外・脊髄くも膜下麻酔を併用する場合、抗血栓薬の休薬とカテーテル管理は区域麻酔ガイドライン(2016)の別基準に従います。
+      <strong>下記の日数をそのまま使わず、必ず麻酔科と確認してください。</strong></div>`;
+  }
+
+  const calcs = state.selected.map(id => calcDrug(DRUGS.find(d => d.id === id)))
+    .sort((a,b) => a.stopStart - b.stopStart);
+
+  const surg = parseDate(state.surgDate);
+  const today = new Date(); today.setHours(0,0,0,0);
+
+  let html = '<h2>結果：薬ごとの休薬日</h2>';
+  calcs.forEach(c=>{
+    const d = c.drug;
+    const passed = c.stopStart < today;
+    const badges = [
+      `<span class="badge grp">${d.grp}</span>`,
+      `<span class="badge src">${d.source}</span>`,
+      d.draft ? '<span class="badge draft">監修前</span>' : '',
+      d.pending ? '<span class="badge pending">改訂待ち</span>' : '',
+      d.consult ? '<span class="badge consult-b">要相談</span>' : ''
+    ].join('');
+    const dateLine = c.days === 0
+      ? `<span class="badge zero">手術当日</span> <span class="date">${fmt(surg)}</span> は内服しない（前日までは内服可）`
+      : `<span class="date">${fmt(c.stopStart)}</span> から休薬（手術日を含まず ${c.days}日前）`;
+    const lastLine = c.days === 0 ? '' :
+      `<div class="lastdose">最終内服: ${fmt(c.lastDose)}　手術日: ${fmt(surg)}</div>`;
+    const notes = [
+      d.rangeNote ? `<li>${d.rangeNote}</li>` : '',
+      (state.renal && d.renalRule) ? '<li><strong>腎機能低下として延長した日数で計算しています</strong></li>' : '',
+      d.extra ? `<li>${d.extra}</li>` : '',
+      d.consult ? `<li><strong>要相談:</strong> ${d.consultNote}</li>` : '',
+      d.restart ? `<li>再開目安: ${d.restart}</li>` : '',
+      passed ? '<li><strong style="color:var(--ng)">⚠ 休薬開始日をすでに過ぎています。方針を主治医・麻酔科と至急確認</strong></li>' : ''
+    ].join('');
+    html += `<div class="result-card${d.consult ? ' consult' : ''}">
+      <div class="head"><span class="dname">${d.brands[0] || d.generic}</span>
+        <span class="brands">${d.generic}${d.brands.length > 1 ? '｜' + d.brands.slice(1).join('、') : ''}</span></div>
+      <div>${badges}</div>
+      <div class="stopdate">${dateLine}</div>
+      ${lastLine}
+      <div class="notes"><ul>${notes}</ul></div>
+    </div>`;
+  });
+  res.innerHTML = html;
+
+  // カレンダー（日付ごとに「この日からやめる薬」を集約）
+  const byDate = new Map();
+  calcs.forEach(c=>{
+    const key = c.days === 0 ? state.surgDate : ymd(c.stopStart);
+    if(!byDate.has(key)) byDate.set(key, []);
+    byDate.get(key).push(c.drug.brands[0] || c.drug.generic);
+  });
+  let rows = [...byDate.entries()].sort((a,b) => a[0] < b[0] ? -1 : 1)
+    .map(([key, names])=>{
+      const d = parseDate(key);
+      const isSurg = key === state.surgDate;
+      return `<tr${isSurg ? ' class="surg"' : ''}><td class="dt">${fmt(d)}</td>
+        <td>${isSurg ? '🔪 手術日' + (names.length ? '（当日休薬: ' + names.join('、') + '）' : '') : names.join('、') + ' を休薬開始'}</td></tr>`;
+    });
+  if(!byDate.has(state.surgDate)){
+    rows.push(`<tr class="surg"><td class="dt">${fmt(surg)}</td><td>🔪 手術日</td></tr>`);
+  }
+  $('schedule').innerHTML = `<table class="schedule"><thead><tr><th>日付</th><th>アクション</th></tr></thead><tbody>${rows.join('')}</tbody></table>`;
+  schedCard.style.display = 'block';
+}
+
+function buildCopyText(){
+  const surg = parseDate(state.surgDate);
+  const riskLabel = state.risk === 'high' ? '高出血リスク' : '低出血リスク';
+  const lines = [
+    `【術前休薬チェック（${APP_VERSION}・教育用ダブルチェック）】`,
+    `手術予定日: ${state.surgDate} ${fmt(surg)} / ${riskLabel}${state.neuraxial ? ' / 区域麻酔予定あり' : ''}${state.renal ? ' / 腎機能低下' : ''}`,
+    ''
+  ];
+  state.selected.map(id => calcDrug(DRUGS.find(d => d.id === id)))
+    .sort((a,b) => a.stopStart - b.stopStart)
+    .forEach(c=>{
+      const d = c.drug;
+      const name = `${d.brands[0] || d.generic}（${d.generic}）`;
+      if(c.days === 0){
+        lines.push(`・${name}: 手術当日のみ休薬 [${d.source}]`);
+      } else {
+        lines.push(`・${name}: ${fmt(c.stopStart)}から休薬（${c.days}日前・最終内服${fmt(c.lastDose)}） [${d.source}]`);
+      }
+      if(d.consult) lines.push(`　→ 要相談: ${d.consultNote}`);
+    });
+  if(state.neuraxial) lines.push('', '※区域麻酔併用のため抗血栓薬は別基準。麻酔科と要確認（区域麻酔GL2016）');
+  lines.push('', '※本結果は監修前ドラフトの教育用ツールによる参考値。施設プロトコル・主治医/麻酔科の判断を優先。');
+  return lines.join('\n');
+}
+
+/* ---------- 薬剤一覧タブ ---------- */
+function renderDrugList(){
+  const el = $('druglist');
+  let html = '';
+  GRP_ORDER.forEach(grp=>{
+    const items = DRUGS.filter(d => d.grp === grp);
+    if(items.length === 0) return;
+    html += `<div class="druglist-grp"><h3>${grp}</h3>`;
+    items.forEach(d=>{
+      const days = d.rule.low === d.rule.high
+        ? (d.rule.high === 0 ? '手術当日のみ休薬' : `${d.rule.high}日前から休薬`)
+        : `低リスク${d.rule.low}日前 / 高リスク${d.rule.high}日前`;
+      html += `<div class="drugrow">
+        <span class="dname">${d.generic}</span>
+        <span class="badge src">${d.source}</span>${d.draft ? '<span class="badge draft">監修前</span>' : ''}${d.pending ? '<span class="badge pending">改訂待ち</span>' : ''}${d.consult ? '<span class="badge consult-b">要相談</span>' : ''}
+        <div class="brands">${d.brands.join('、')}</div>
+        <div class="rule"><strong>${days}</strong>${d.renalRule ? `（腎機能低下時: 低${d.renalRule.low}日/高${d.renalRule.high}日）` : ''}<br>${d.rangeNote || ''}</div>
+      </div>`;
+    });
+    html += '</div>';
+  });
+  el.innerHTML = html;
+}
+
+/* ============================================================
+ * OCR（お薬手帳の写真 → 薬剤候補）
+ * Tesseract.js + 日本語fastモデルを同梱(vendor/)。画像は端末外に出ない。
+ * 全文を読む必要はなく、辞書とのあいまい照合で周術期関連薬のみ拾う。
+ * ============================================================ */
+const OCR = { worker:null, candidates:[], rawText:'' };
+
+function loadScript(src){
+  return new Promise((res, rej)=>{
+    const s = document.createElement('script');
+    s.src = src; s.onload = res; s.onerror = ()=>rej(new Error('load failed: ' + src));
+    document.head.appendChild(s);
+  });
+}
+
+async function ensureOcrWorker(onProgress){
+  if(OCR.worker) return OCR.worker;
+  if(!window.Tesseract) await loadScript('vendor/tesseract.min.js');
+  const base = new URL('vendor/', location.href).href;
+  const worker = await Tesseract.createWorker('jpn', 1, {
+    workerPath: base + 'worker.min.js',
+    corePath:   base + 'core',
+    langPath:   base + 'lang',
+    logger: m => onProgress && onProgress(m)
+  });
+  await worker.setParameters({
+    tessedit_pageseg_mode: '6',   // 単一ブロック（お薬手帳シール想定）
+    preserve_interword_spaces: '1',
+    user_defined_dpi: '300'
+  });
+  OCR.worker = worker;
+  return worker;
+}
+
+function loadImageFile(file){
+  return new Promise((res, rej)=>{
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = ()=>res({img, url});
+    img.onerror = ()=>{ URL.revokeObjectURL(url); rej(new Error('image load failed')); };
+    img.src = url;
+  });
+}
+
+// グレースケール + コントラストストレッチ(2-98パーセンタイル)
+function preprocessImage(img){
+  const MAX = 1800;
+  const scale = Math.min(1, MAX / Math.max(img.naturalWidth, img.naturalHeight));
+  const w = Math.round(img.naturalWidth * scale), h = Math.round(img.naturalHeight * scale);
+  const canvas = document.createElement('canvas');
+  canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(img, 0, 0, w, h);
+  const im = ctx.getImageData(0, 0, w, h);
+  const d = im.data;
+  const hist = new Array(256).fill(0);
+  for(let i=0;i<d.length;i+=4){
+    const g = (d[i]*0.299 + d[i+1]*0.587 + d[i+2]*0.114) | 0;
+    d[i] = g; hist[g]++;
+  }
+  const total = w*h;
+  let lo=0, hi=255, acc=0;
+  for(let v=0;v<256;v++){ acc += hist[v]; if(acc >= total*0.02){ lo=v; break; } }
+  acc=0;
+  for(let v=255;v>=0;v--){ acc += hist[v]; if(acc >= total*0.02){ hi=v; break; } }
+  const range = Math.max(1, hi - lo);
+  for(let i=0;i<d.length;i+=4){
+    const g = Math.max(0, Math.min(255, ((d[i] - lo) * 255 / range) | 0));
+    d[i] = d[i+1] = d[i+2] = g;
+  }
+  ctx.putImageData(im, 0, 0);
+  return canvas;
+}
+
+// OCR文字列向けの追加正規化（長音記号の誤認識ゆらぎを吸収）
+function ocrNorm(s){
+  return norm(s).replace(/[一—―−‐]/g, 'ー');
+}
+
+// 部分文字列あいまい一致: needle が hay のどこかに編集距離いくつで現れるか
+function fuzzySearch(needle, hay){
+  const m = needle.length, n = hay.length;
+  if(m === 0 || n === 0) return Infinity;
+  let prev = new Array(n+1).fill(0);   // 開始位置は自由
+  for(let i=1;i<=m;i++){
+    const cur = new Array(n+1);
+    cur[0] = i;
+    for(let j=1;j<=n;j++){
+      cur[j] = Math.min(
+        prev[j] + 1,
+        cur[j-1] + 1,
+        prev[j-1] + (needle[i-1] === hay[j-1] ? 0 : 1)
+      );
+    }
+    prev = cur;
+  }
+  return Math.min(...prev);
+}
+
+function tolerance(len){ return len >= 8 ? 2 : (len >= 5 ? 1 : 0); }
+
+// OCR全文 → 辞書照合 → 薬剤候補 [{drug, dist, key, line}]
+function matchOcrText(text){
+  const lines = text.split('\n').map(l => l.trim()).filter(l => ocrNorm(l).length >= 3);
+  const best = new Map();
+  for(const line of lines){
+    const nl = ocrNorm(line);
+    for(const d of DRUGS){
+      for(const key of [d.generic, ...d.brands]){
+        const nk = ocrNorm(key.replace(/（.*?）|\(.*?\)/g, ''));  // 注記括弧は照合対象外
+        if(nk.length < 3) continue;
+        const dist = fuzzySearch(nk, nl);
+        if(dist <= tolerance(nk.length)){
+          const cur = best.get(d.id);
+          // 距離が小さいものを優先。同点なら長いキー（商品名のフル表記）を採用
+          if(!cur || dist < cur.dist || (dist === cur.dist && key.length > cur.key.length)){
+            best.set(d.id, {drug:d, dist, key, line});
+          }
+        }
+      }
+    }
+  }
+  return [...best.values()].sort((a,b) => a.dist - b.dist);
+}
+
+/* ---------- OCRモーダル制御 ---------- */
+function ocrShowProgress(){
+  $('ocr-progress-view').style.display = 'block';
+  $('ocr-result-view').style.display = 'none';
+  $('ocr-modal').classList.add('show');
+}
+function ocrClose(){
+  $('ocr-modal').classList.remove('show');
+  const t = $('ocr-thumb');
+  if(t.src){ URL.revokeObjectURL(t.src); t.removeAttribute('src'); }
+}
+
+async function runOcr(file){
+  ocrShowProgress();
+  const bar = $('ocr-bar'), status = $('ocr-status');
+  bar.style.width = '0%';
+  try{
+    const {img, url} = await loadImageFile(file);
+    $('ocr-thumb').src = url;
+    status.textContent = '読み取りエンジンを準備中…';
+    const worker = await ensureOcrWorker(m=>{
+      if(m.status === 'recognizing text'){
+        bar.style.width = Math.round(m.progress * 100) + '%';
+        status.textContent = `文字を認識中… ${Math.round(m.progress * 100)}%`;
+      } else if(m.progress != null){
+        status.textContent = 'エンジン読み込み中…';
+        bar.style.width = Math.round(m.progress * 30) + '%';
+      }
+    });
+    status.textContent = '画像を前処理中…';
+    const canvas = preprocessImage(img);
+    const {data} = await worker.recognize(canvas);
+    OCR.rawText = data.text || '';
+    OCR.candidates = matchOcrText(OCR.rawText);
+    renderOcrResult();
+  }catch(e){
+    ocrClose();
+    showToast('読み取りに失敗しました: ' + e.message);
+  }
+}
+
+function renderOcrResult(){
+  $('ocr-progress-view').style.display = 'none';
+  $('ocr-result-view').style.display = 'block';
+  $('ocr-raw-text').textContent = OCR.rawText.trim() || '（テキストを認識できませんでした）';
+  const box = $('ocr-candidates');
+  if(OCR.candidates.length === 0){
+    box.innerHTML = `<div class="alert warn"><strong>周術期に関係する薬は見つかりませんでした</strong>
+      ピント・明るさ・ページを変えて再撮影するか、下の全テキストを確認して手動検索で追加してください。
+      （継続でよい薬しか写っていない場合も「見つからない」が正解です）</div>`;
+    $('ocr-add-btn').style.display = 'none';
+    return;
+  }
+  $('ocr-add-btn').style.display = 'block';
+  box.innerHTML = '';
+  OCR.candidates.forEach((c, i)=>{
+    const already = state.selected.includes(c.drug.id);
+    const row = document.createElement('label');
+    row.className = 'cand' + (already ? ' already' : '');
+    const conf = c.dist === 0
+      ? '<span class="badge exact">名称一致</span>'
+      : '<span class="badge fuzzy">類似（要確認）</span>';
+    row.innerHTML = `<input type="checkbox" data-i="${i}" ${already ? 'disabled' : (c.dist === 0 ? 'checked' : '')}>
+      <span><span class="cname">${c.drug.brands[0] || c.drug.generic}</span> ${conf}${already ? '<span class="badge grp">追加済み</span>' : ''}
+      <span class="cmeta">${c.drug.generic}｜${c.drug.grp}｜「${c.key}」として検出</span>
+      <span class="cline">読み取り行: ${c.line.slice(0, 40)}</span></span>`;
+    box.appendChild(row);
+  });
+}
+
+function ocrAddChecked(){
+  const checks = $('ocr-candidates').querySelectorAll('input[type=checkbox]:checked:not(:disabled)');
+  let added = 0;
+  checks.forEach(ch=>{
+    const c = OCR.candidates[Number(ch.dataset.i)];
+    if(c && !state.selected.includes(c.drug.id)){ state.selected.push(c.drug.id); added++; }
+  });
+  ocrClose();
+  render();
+  showToast(added > 0 ? `${added}件の薬を追加しました` : '追加された薬はありません');
+}
+
+/* ---------- 初期化 ---------- */
+function init(){
+  loadState();
+  $('version-label').textContent = `${APP_VERSION} · ${APP_RELEASE}`;
+
+  document.querySelectorAll('.tab-btn').forEach(b=>{
+    b.addEventListener('click',()=>{
+      document.querySelectorAll('.tab-btn').forEach(x=>x.classList.remove('active'));
+      document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+      b.classList.add('active');
+      $(b.dataset.tab).classList.add('active');
+      window.scrollTo({top:0, behavior:'instant'});
+    });
+  });
+
+  const sd = $('surg-date');
+  sd.value = state.surgDate;
+  sd.addEventListener('change',()=>{ state.surgDate = sd.value; render(); });
+
+  document.querySelectorAll('#risk-seg button').forEach(b=>{
+    if(b.dataset.risk === state.risk) b.classList.add('on'); else b.classList.remove('on');
+    b.addEventListener('click',()=>{
+      state.risk = b.dataset.risk;
+      document.querySelectorAll('#risk-seg button').forEach(x=>x.classList.toggle('on', x === b));
+      render();
+    });
+  });
+
+  $('opt-neuraxial').checked = state.neuraxial;
+  $('opt-neuraxial').addEventListener('change', e=>{ state.neuraxial = e.target.checked; render(); });
+  $('opt-renal').checked = state.renal;
+  $('opt-renal').addEventListener('change', e=>{ state.renal = e.target.checked; render(); });
+
+  const input = $('drug-search');
+  const sug = $('suggest');
+  input.addEventListener('input',()=>{
+    const hits = searchDrugs(input.value);
+    sug.innerHTML = '';
+    if(hits.length === 0){ sug.classList.remove('show'); return; }
+    hits.forEach(d=>{
+      const b = document.createElement('button');
+      b.innerHTML = `<span class="gname">${d.brands[0] || d.generic}</span>
+        <span class="meta">${d.generic}｜${d.grp}${d.brands.length > 1 ? '｜' + d.brands.slice(1).join('、') : ''}</span>`;
+      b.addEventListener('click',()=>{
+        state.selected.push(d.id);
+        input.value = '';
+        sug.classList.remove('show');
+        render();
+        showToast(`${d.brands[0] || d.generic} を追加しました`);
+      });
+      sug.appendChild(b);
+    });
+    sug.classList.add('show');
+  });
+  document.addEventListener('click', e=>{
+    if(!e.target.closest('.searchbox')) sug.classList.remove('show');
+  });
+
+  $('copy-btn').addEventListener('click',()=>{
+    const text = buildCopyText();
+    const done = ()=>showToast('コピーしました');
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(text).then(done).catch(()=>{ fallbackCopy(text); done(); });
+    } else { fallbackCopy(text); done(); }
+  });
+
+  $('clear-btn').addEventListener('click',()=>{
+    if(confirm('入力をリセットしますか?')){
+      state = { surgDate:'', risk:'high', neuraxial:false, renal:false, selected:[] };
+      sd.value = '';
+      $('opt-neuraxial').checked = false;
+      $('opt-renal').checked = false;
+      document.querySelectorAll('#risk-seg button').forEach(x=>x.classList.toggle('on', x.dataset.risk === 'high'));
+      render();
+      showToast('リセットしました');
+    }
+  });
+
+  $('ocr-btn').addEventListener('click', ()=>$('ocr-file').click());
+  $('ocr-file').addEventListener('change', e=>{
+    const f = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if(f) runOcr(f);
+  });
+  $('ocr-cancel').addEventListener('click', ocrClose);
+  $('ocr-add-btn').addEventListener('click', ocrAddChecked);
+  $('ocr-retry-btn').addEventListener('click', ()=>{ ocrClose(); $('ocr-file').click(); });
+  $('ocr-modal').addEventListener('click', e=>{ if(e.target.id === 'ocr-modal') ocrClose(); });
+
+  renderDrugList();
+  render();
+
+  if('serviceWorker' in navigator){
+    window.addEventListener('load',()=>{
+      navigator.serviceWorker.register('sw.js').catch(()=>{});
+    });
+  }
+
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches
+                    || window.navigator.standalone === true;
+  const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
+  if(!isStandalone){
+    $('install-hint').innerHTML = isIOS
+      ? '📱 ホーム画面に追加: Safari共有ボタン → 「ホーム画面に追加」'
+      : '📱 ホーム画面に追加: ブラウザメニュー → 「ホーム画面に追加」';
+  }
+}
+
+function fallbackCopy(text){
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed'; ta.style.opacity = '0';
+  document.body.appendChild(ta);
+  ta.select();
+  try{ document.execCommand('copy'); }catch(e){}
+  document.body.removeChild(ta);
+}
+
+init();
+</script>
+</body>
+</html>
