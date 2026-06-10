@@ -1,6 +1,8 @@
 // 術前おくすりチェッカー - Service Worker
 // キャッシュ名にバージョンを含めて更新時に自動クリーンアップ
-const CACHE_NAME = 'preop-med-checker-v0.1.0';
+const CACHE_NAME = 'preop-med-checker-v0.2.0';
+// OCRエンジン(vendor/ 約7MB)はアプリ更新で再取得しない永続キャッシュ
+const VENDOR_CACHE = 'preop-med-checker-vendor-v1';
 const ASSETS = [
   './',
   './index.html',
@@ -21,7 +23,7 @@ self.addEventListener('install', event => {
 self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys().then(keys => Promise.all(
-      keys.filter(k => k !== CACHE_NAME && k.startsWith('preop-med-checker-')).map(k => caches.delete(k))
+      keys.filter(k => k !== CACHE_NAME && k !== VENDOR_CACHE && k.startsWith('preop-med-checker-')).map(k => caches.delete(k))
     )).then(() => self.clients.claim())
   );
 });
@@ -43,11 +45,12 @@ self.addEventListener('fetch', event => {
     return;
   }
 
+  const isVendor = new URL(req.url).pathname.includes('/vendor/');
   event.respondWith(
     caches.match(req).then(cached => cached || fetch(req).then(res => {
       if (res.ok && new URL(req.url).origin === self.location.origin) {
         const copy = res.clone();
-        caches.open(CACHE_NAME).then(c => c.put(req, copy));
+        caches.open(isVendor ? VENDOR_CACHE : CACHE_NAME).then(c => c.put(req, copy));
       }
       return res;
     }).catch(() => cached))

@@ -135,6 +135,37 @@ footer.app-footer{text-align:center;padding:20px 12px calc(20px + env(safe-area-
   color:#94a3b8;font-size:11px;line-height:1.5}
 footer.app-footer .ver{font-weight:600;color:#64748b}
 
+.btn-photo{width:100%;padding:13px;background:#fff;border:2px solid var(--accent);color:var(--accent);
+  border-radius:10px;font-weight:700;font-size:14px;cursor:pointer;margin-bottom:6px}
+.btn-photo:active{background:var(--accent-bg)}
+.ocr-privacy{font-size:11px;color:var(--muted);margin:0 0 12px;line-height:1.5}
+.btn-sub{width:100%;padding:11px;background:#f1f5f9;border:1px solid var(--border);color:var(--text);
+  border-radius:10px;font-weight:600;font-size:13px;cursor:pointer;margin-top:8px}
+
+.ocr-modal{position:fixed;inset:0;background:rgba(15,23,42,.6);display:none;
+  align-items:center;justify-content:center;padding:16px;z-index:100}
+.ocr-modal.show{display:flex}
+.ocr-card{background:#fff;border-radius:14px;padding:16px;max-width:440px;width:100%;
+  max-height:86vh;overflow-y:auto}
+.ocr-thumb{display:block;max-width:100%;max-height:140px;margin:0 auto 10px;border-radius:8px;
+  border:1px solid var(--border)}
+.progress{height:8px;background:#e2e8f0;border-radius:4px;overflow:hidden;margin:8px 0}
+.progress-bar{height:100%;width:0%;background:var(--accent);transition:width .2s}
+.ocr-status{font-size:12px;color:var(--muted);margin:4px 0}
+.cand{display:flex;align-items:flex-start;gap:10px;border:1px solid var(--border);border-radius:10px;
+  padding:10px;margin-bottom:6px;cursor:pointer}
+.cand input{width:20px;height:20px;accent-color:var(--accent);margin-top:2px;flex-shrink:0}
+.cand .cname{font-weight:700;font-size:14px}
+.cand .cmeta{font-size:11px;color:var(--muted)}
+.cand .cline{font-size:11px;color:#334155;background:#f8fafc;border-radius:6px;padding:2px 6px;
+  margin-top:3px;display:inline-block}
+.cand.already{opacity:.55}
+.badge.exact{background:var(--ok-bg);color:var(--ok)}
+.badge.fuzzy{background:var(--warn-bg);color:#92400e}
+.ocr-raw{margin:8px 0;font-size:12px;color:var(--muted)}
+.ocr-raw pre{white-space:pre-wrap;background:#f8fafc;border:1px solid var(--border);border-radius:8px;
+  padding:8px;font-size:11px;max-height:160px;overflow-y:auto}
+
 .toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);
   background:#0f172a;color:#fff;padding:10px 16px;border-radius:24px;font-size:13px;
   opacity:0;transition:opacity .3s;pointer-events:none;z-index:200;max-width:calc(100% - 40px)}
@@ -185,6 +216,9 @@ footer.app-footer .ver{font-weight:600;color:#64748b}
 
     <div class="card">
       <h2 style="margin-top:0">② 内服中の薬を追加</h2>
+      <button class="btn-photo" id="ocr-btn">📷 お薬手帳の写真から読み取る</button>
+      <input type="file" id="ocr-file" accept="image/*" hidden>
+      <p class="ocr-privacy">写真は端末の中だけで処理され、<strong>外部には一切送信されません</strong>。お薬手帳のシール（薬剤情報のページ）を真上から、明るい場所で撮影してください。</p>
       <div class="searchbox">
         <input type="text" id="drug-search" placeholder="薬の名前で検索（例: エリキュース / ばいあすぴりん）"
                autocomplete="off" autocorrect="off">
@@ -291,10 +325,33 @@ footer.app-footer .ver{font-weight:600;color:#64748b}
   </footer>
 </main>
 
+<div class="ocr-modal" id="ocr-modal">
+  <div class="ocr-card">
+    <div id="ocr-progress-view">
+      <h3 style="margin:0 0 10px">📷 読み取り中…</h3>
+      <img id="ocr-thumb" alt="" class="ocr-thumb">
+      <div class="progress"><div class="progress-bar" id="ocr-bar"></div></div>
+      <p class="ocr-status" id="ocr-status">準備中…</p>
+      <p class="ocr-status" style="opacity:.7">初回は読み取りエンジンの読み込みに10秒ほどかかることがあります</p>
+    </div>
+    <div id="ocr-result-view" style="display:none">
+      <h3 style="margin:0 0 4px">候補が見つかりました</h3>
+      <p class="ocr-status" style="margin-top:0">追加する薬に✓を入れて確定してください。<strong>誤認識の可能性があるため必ず原本と照合を。</strong></p>
+      <div id="ocr-candidates"></div>
+      <details class="ocr-raw"><summary>認識された全テキストを表示（拾えなかった薬がないか確認）</summary>
+        <pre id="ocr-raw-text"></pre>
+      </details>
+      <button class="btn-primary" id="ocr-add-btn">✓ チェックした薬を追加</button>
+      <button class="btn-sub" id="ocr-retry-btn">📷 別のページを読み取る</button>
+    </div>
+    <button class="btn-sub" id="ocr-cancel">閉じる</button>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
-const APP_VERSION = 'v0.1.0-draft';
+const APP_VERSION = 'v0.2.0-draft';
 const APP_RELEASE = '2026-06-10';
 const STORAGE_KEY = 'preop-med-checker-v1';
 
@@ -646,6 +703,213 @@ function renderDrugList(){
   el.innerHTML = html;
 }
 
+/* ============================================================
+ * OCR（お薬手帳の写真 → 薬剤候補）
+ * Tesseract.js + 日本語fastモデルを同梱(vendor/)。画像は端末外に出ない。
+ * 全文を読む必要はなく、辞書とのあいまい照合で周術期関連薬のみ拾う。
+ * ============================================================ */
+const OCR = { worker:null, candidates:[], rawText:'' };
+
+function loadScript(src){
+  return new Promise((res, rej)=>{
+    const s = document.createElement('script');
+    s.src = src; s.onload = res; s.onerror = ()=>rej(new Error('load failed: ' + src));
+    document.head.appendChild(s);
+  });
+}
+
+async function ensureOcrWorker(onProgress){
+  if(OCR.worker) return OCR.worker;
+  if(!window.Tesseract) await loadScript('vendor/tesseract.min.js');
+  const base = new URL('vendor/', location.href).href;
+  const worker = await Tesseract.createWorker('jpn', 1, {
+    workerPath: base + 'worker.min.js',
+    corePath:   base + 'core',
+    langPath:   base + 'lang',
+    logger: m => onProgress && onProgress(m)
+  });
+  await worker.setParameters({
+    tessedit_pageseg_mode: '6',   // 単一ブロック（お薬手帳シール想定）
+    preserve_interword_spaces: '1',
+    user_defined_dpi: '300'
+  });
+  OCR.worker = worker;
+  return worker;
+}
+
+function loadImageFile(file){
+  return new Promise((res, rej)=>{
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = ()=>res({img, url});
+    img.onerror = ()=>{ URL.revokeObjectURL(url); rej(new Error('image load failed')); };
+    img.src = url;
+  });
+}
+
+// グレースケール + コントラストストレッチ(2-98パーセンタイル)
+function preprocessImage(img){
+  const MAX = 1800;
+  const scale = Math.min(1, MAX / Math.max(img.naturalWidth, img.naturalHeight));
+  const w = Math.round(img.naturalWidth * scale), h = Math.round(img.naturalHeight * scale);
+  const canvas = document.createElement('canvas');
+  canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(img, 0, 0, w, h);
+  const im = ctx.getImageData(0, 0, w, h);
+  const d = im.data;
+  const hist = new Array(256).fill(0);
+  for(let i=0;i<d.length;i+=4){
+    const g = (d[i]*0.299 + d[i+1]*0.587 + d[i+2]*0.114) | 0;
+    d[i] = g; hist[g]++;
+  }
+  const total = w*h;
+  let lo=0, hi=255, acc=0;
+  for(let v=0;v<256;v++){ acc += hist[v]; if(acc >= total*0.02){ lo=v; break; } }
+  acc=0;
+  for(let v=255;v>=0;v--){ acc += hist[v]; if(acc >= total*0.02){ hi=v; break; } }
+  const range = Math.max(1, hi - lo);
+  for(let i=0;i<d.length;i+=4){
+    const g = Math.max(0, Math.min(255, ((d[i] - lo) * 255 / range) | 0));
+    d[i] = d[i+1] = d[i+2] = g;
+  }
+  ctx.putImageData(im, 0, 0);
+  return canvas;
+}
+
+// OCR文字列向けの追加正規化（長音記号の誤認識ゆらぎを吸収）
+function ocrNorm(s){
+  return norm(s).replace(/[一—―−‐]/g, 'ー');
+}
+
+// 部分文字列あいまい一致: needle が hay のどこかに編集距離いくつで現れるか
+function fuzzySearch(needle, hay){
+  const m = needle.length, n = hay.length;
+  if(m === 0 || n === 0) return Infinity;
+  let prev = new Array(n+1).fill(0);   // 開始位置は自由
+  for(let i=1;i<=m;i++){
+    const cur = new Array(n+1);
+    cur[0] = i;
+    for(let j=1;j<=n;j++){
+      cur[j] = Math.min(
+        prev[j] + 1,
+        cur[j-1] + 1,
+        prev[j-1] + (needle[i-1] === hay[j-1] ? 0 : 1)
+      );
+    }
+    prev = cur;
+  }
+  return Math.min(...prev);
+}
+
+function tolerance(len){ return len >= 8 ? 2 : (len >= 5 ? 1 : 0); }
+
+// OCR全文 → 辞書照合 → 薬剤候補 [{drug, dist, key, line}]
+function matchOcrText(text){
+  const lines = text.split('\n').map(l => l.trim()).filter(l => ocrNorm(l).length >= 3);
+  const best = new Map();
+  for(const line of lines){
+    const nl = ocrNorm(line);
+    for(const d of DRUGS){
+      for(const key of [d.generic, ...d.brands]){
+        const nk = ocrNorm(key.replace(/（.*?）|\(.*?\)/g, ''));  // 注記括弧は照合対象外
+        if(nk.length < 3) continue;
+        const dist = fuzzySearch(nk, nl);
+        if(dist <= tolerance(nk.length)){
+          const cur = best.get(d.id);
+          // 距離が小さいものを優先。同点なら長いキー（商品名のフル表記）を採用
+          if(!cur || dist < cur.dist || (dist === cur.dist && key.length > cur.key.length)){
+            best.set(d.id, {drug:d, dist, key, line});
+          }
+        }
+      }
+    }
+  }
+  return [...best.values()].sort((a,b) => a.dist - b.dist);
+}
+
+/* ---------- OCRモーダル制御 ---------- */
+function ocrShowProgress(){
+  $('ocr-progress-view').style.display = 'block';
+  $('ocr-result-view').style.display = 'none';
+  $('ocr-modal').classList.add('show');
+}
+function ocrClose(){
+  $('ocr-modal').classList.remove('show');
+  const t = $('ocr-thumb');
+  if(t.src){ URL.revokeObjectURL(t.src); t.removeAttribute('src'); }
+}
+
+async function runOcr(file){
+  ocrShowProgress();
+  const bar = $('ocr-bar'), status = $('ocr-status');
+  bar.style.width = '0%';
+  try{
+    const {img, url} = await loadImageFile(file);
+    $('ocr-thumb').src = url;
+    status.textContent = '読み取りエンジンを準備中…';
+    const worker = await ensureOcrWorker(m=>{
+      if(m.status === 'recognizing text'){
+        bar.style.width = Math.round(m.progress * 100) + '%';
+        status.textContent = `文字を認識中… ${Math.round(m.progress * 100)}%`;
+      } else if(m.progress != null){
+        status.textContent = 'エンジン読み込み中…';
+        bar.style.width = Math.round(m.progress * 30) + '%';
+      }
+    });
+    status.textContent = '画像を前処理中…';
+    const canvas = preprocessImage(img);
+    const {data} = await worker.recognize(canvas);
+    OCR.rawText = data.text || '';
+    OCR.candidates = matchOcrText(OCR.rawText);
+    renderOcrResult();
+  }catch(e){
+    ocrClose();
+    showToast('読み取りに失敗しました: ' + e.message);
+  }
+}
+
+function renderOcrResult(){
+  $('ocr-progress-view').style.display = 'none';
+  $('ocr-result-view').style.display = 'block';
+  $('ocr-raw-text').textContent = OCR.rawText.trim() || '（テキストを認識できませんでした）';
+  const box = $('ocr-candidates');
+  if(OCR.candidates.length === 0){
+    box.innerHTML = `<div class="alert warn"><strong>周術期に関係する薬は見つかりませんでした</strong>
+      ピント・明るさ・ページを変えて再撮影するか、下の全テキストを確認して手動検索で追加してください。
+      （継続でよい薬しか写っていない場合も「見つからない」が正解です）</div>`;
+    $('ocr-add-btn').style.display = 'none';
+    return;
+  }
+  $('ocr-add-btn').style.display = 'block';
+  box.innerHTML = '';
+  OCR.candidates.forEach((c, i)=>{
+    const already = state.selected.includes(c.drug.id);
+    const row = document.createElement('label');
+    row.className = 'cand' + (already ? ' already' : '');
+    const conf = c.dist === 0
+      ? '<span class="badge exact">名称一致</span>'
+      : '<span class="badge fuzzy">類似（要確認）</span>';
+    row.innerHTML = `<input type="checkbox" data-i="${i}" ${already ? 'disabled' : (c.dist === 0 ? 'checked' : '')}>
+      <span><span class="cname">${c.drug.brands[0] || c.drug.generic}</span> ${conf}${already ? '<span class="badge grp">追加済み</span>' : ''}
+      <span class="cmeta">${c.drug.generic}｜${c.drug.grp}｜「${c.key}」として検出</span>
+      <span class="cline">読み取り行: ${c.line.slice(0, 40)}</span></span>`;
+    box.appendChild(row);
+  });
+}
+
+function ocrAddChecked(){
+  const checks = $('ocr-candidates').querySelectorAll('input[type=checkbox]:checked:not(:disabled)');
+  let added = 0;
+  checks.forEach(ch=>{
+    const c = OCR.candidates[Number(ch.dataset.i)];
+    if(c && !state.selected.includes(c.drug.id)){ state.selected.push(c.drug.id); added++; }
+  });
+  ocrClose();
+  render();
+  showToast(added > 0 ? `${added}件の薬を追加しました` : '追加された薬はありません');
+}
+
 /* ---------- 初期化 ---------- */
 function init(){
   loadState();
@@ -723,6 +987,17 @@ function init(){
       showToast('リセットしました');
     }
   });
+
+  $('ocr-btn').addEventListener('click', ()=>$('ocr-file').click());
+  $('ocr-file').addEventListener('change', e=>{
+    const f = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if(f) runOcr(f);
+  });
+  $('ocr-cancel').addEventListener('click', ocrClose);
+  $('ocr-add-btn').addEventListener('click', ocrAddChecked);
+  $('ocr-retry-btn').addEventListener('click', ()=>{ ocrClose(); $('ocr-file').click(); });
+  $('ocr-modal').addEventListener('click', e=>{ if(e.target.id === 'ocr-modal') ocrClose(); });
 
   renderDrugList();
   render();
